@@ -1,0 +1,88 @@
+name: Q90 image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags-ignore: ['v*']
+    paths:
+      - 'overlay/**'
+      - 'src/**'
+      - 'platforms/q90/**'
+      - 'tools/**'
+      - 'tests/**'
+      - 'VERSION'
+      - 'build.sh'
+      - 'forge-build'
+      - '.github/workflows/q90-image.yml'
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+concurrency:
+  group: q90-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-q90:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+      - name: Install dependencies
+        run: ./tools/ci/install-deps.sh
+      - name: Read version and upstream revision
+        id: meta
+        shell: bash
+        run: |
+          version=$(cat VERSION)
+          upstream=$(sed -n 's/^FORGE_UPSTREAM_REF=//p' platforms/q90/build.env)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - name: Cache Buildroot downloads
+        uses: actions/cache@v4
+        with:
+          path: build/downloads
+          key: q90-downloads-${{ runner.os }}-${{ steps.meta.outputs.upstream }}
+          restore-keys: |
+            q90-downloads-${{ runner.os }}-
+      - name: Validate and test
+        run: |
+          python3 tools/validate-platform.py platforms/q90/platform.ini
+          python3 tools/validate-theme.py
+          ./forge-build q90 --check
+          ./tests/run.sh
+      - name: Build Q90 image
+        env:
+          JOBS: '2'
+        run: ./forge-build q90
+      - name: Verify image outputs
+        run: |
+          sha256sum -c "dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.sha256"
+          test -s "dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.emulators.txt"
+          test -s "dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.upstream-ref"
+      - name: Attest Q90 image
+        continue-on-error: true
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            dist/forgeos-q90-${{ steps.meta.outputs.version }}.img
+            dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.emulators.txt
+            dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.upstream-ref
+      - name: Upload Q90 image
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgeos-q90-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.short_sha }}
+          path: |
+            dist/forgeos-q90-${{ steps.meta.outputs.version }}.img
+            dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.sha256
+            dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.emulators.txt
+            dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.upstream-ref
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30

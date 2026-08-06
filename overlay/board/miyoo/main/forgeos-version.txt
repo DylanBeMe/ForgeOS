@@ -1,0 +1,2 @@
+ForgeOS Q90 0.6.3
+Build metadata is generated during a full-image build.

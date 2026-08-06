@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+      - name: Install dependencies
+        run: ./tools/ci/install-deps.sh
+      - name: Validate adapters and theme
+        run: |
+          python3 tools/validate-platform.py
+          python3 tools/validate-theme.py
+          ./forge-build q90 --check
+          ./forge-build generic-linux --check
+      - name: Run static, sanitizer, integration, and packaging tests
+        run: ./tests/run.sh
+      - name: Build generic Linux simulator bundle
+        run: ./forge-build generic-linux
+      - name: Upload simulator bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgeos-generic-linux-${{ github.sha }}
+          path: dist/forgeos-generic-linux-*.tar.gz*
+          if-no-files-found: error
+          retention-days: 14

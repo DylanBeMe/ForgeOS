@@ -1,0 +1,2 @@
+path,title,artwork,emulator_id,cpu_profile,aspect,scaling,frameskip,bios
+/mnt/roms/GBA/Example.gba,Example Game,/home/user/boxart/example.png,,balanced,original,nearest,-1,

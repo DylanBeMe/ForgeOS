@@ -1,0 +1,13 @@
+tester,date,task,success,time_seconds,hesitation_or_wrong_turn,notes
+,,Complete first-run setup while keeping GMenu2X default,,,,
+,,Find and launch a named game,,,,
+,,Add the game to Favorites,,,,
+,,Resume it from Home,,,,
+,,Find another game with Search,,,,
+,,Change and reset one per-game option,,,,
+,,Create a save backup,,,,
+,,Create a hardware report,,,,
+,,Enable and restore high contrast,,,,
+,,Enter Safe Mode and describe what changed,,,,
+,,Return to GMenu2X,,,,
+,,Shut down safely,,,,

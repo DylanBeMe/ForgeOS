@@ -1,0 +1,9 @@
+config BR2_PACKAGE_FORGESHELL
+	bool "ForgeShell"
+	select BR2_PACKAGE_SDL
+	select BR2_PACKAGE_SDL_TTF
+	select BR2_PACKAGE_DEJAVU
+	help
+	  Lightweight portable launcher for Linux/SDL handhelds. Device profiles
+	  provide display, input, storage, power, maintenance, and launcher-provider
+	  integration. ForgeOS ships a Q90 profile and a generic desktop target.

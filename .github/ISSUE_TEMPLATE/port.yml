@@ -1,0 +1,24 @@
+name: Device port request
+description: Propose a new handheld adapter
+title: "[Port] "
+labels: [port]
+body:
+  - type: input
+    id: device
+    attributes: {label: Exact device model and revision}
+    validations: {required: true}
+  - type: textarea
+    id: hardware
+    attributes: {label: Known hardware and existing firmware, description: Include SoC, screen, controls, audio, storage, and upstream sources.}
+    validations: {required: true}
+  - type: textarea
+    id: access
+    attributes: {label: Hardware access and recovery method, description: Explain who can test it and how a failed boot can be recovered.}
+    validations: {required: true}
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I can test development images on this device.
+        - label: I can contribute code or documentation.

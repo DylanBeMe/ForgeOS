@@ -1,0 +1,4 @@
+title=Save Backup
+description=Back up saves, states, and menu settings
+exec=/mnt/apps/forge-tools/backup-saves.sh
+icon=/mnt/apps/forge-tools/icon-backup.png

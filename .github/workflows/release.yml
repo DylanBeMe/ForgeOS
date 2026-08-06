@@ -1,0 +1,97 @@
+name: Publish release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: ./tools/ci/install-deps.sh
+      - name: Validate tag and version
+        id: meta
+        shell: bash
+        run: |
+          version=$(cat VERSION)
+          expected="v$version"
+          if [[ "$GITHUB_REF_NAME" != "$expected" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match VERSION ($expected)." >&2
+            exit 1
+          fi
+          git rev-parse -q --verify "refs/tags/$GITHUB_REF_NAME" >/dev/null
+          upstream=$(sed -n 's/^FORGE_UPSTREAM_REF=//p' platforms/q90/build.env)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
+      - name: Cache Buildroot downloads
+        uses: actions/cache@v4
+        with:
+          path: build/downloads
+          key: q90-downloads-${{ runner.os }}-${{ steps.meta.outputs.upstream }}
+          restore-keys: |
+            q90-downloads-${{ runner.os }}-
+      - name: Validate and run complete test suite
+        run: |
+          python3 tools/validate-platform.py
+          python3 tools/validate-theme.py
+          ./forge-build q90 --check
+          ./forge-build generic-linux --check
+          ./tests/run.sh | tee "build/forgeos-${{ steps.meta.outputs.version }}-tests.txt"
+      - name: Build generic Linux bundle
+        run: ./forge-build generic-linux
+      - name: Build Q90 image
+        env:
+          JOBS: '2'
+        run: ./forge-build q90
+      - name: Package release assets
+        id: package
+        env:
+          SKIP_TESTS: '1'
+        run: |
+          export SOURCE_DATE_EPOCH=$(git show -s --format=%ct "$GITHUB_SHA")
+          ./tools/package-release.sh
+          cp "build/forgeos-${{ steps.meta.outputs.version }}-tests.txt" \
+            "release/forgeos-${{ steps.meta.outputs.version }}-tests.txt"
+          (cd release && find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\0' | sort -z | xargs -0 sha256sum > SHA256SUMS)
+      - name: Generate release notes
+        run: python3 tools/generate-release-notes.py --output build/RELEASE_NOTES.md --repository "${{ github.repository }}"
+      - name: Verify packaged assets
+        run: ./tools/verify-release.sh release
+      - name: Attest release assets
+        continue-on-error: true
+        uses: actions/attest@v4
+        with:
+          subject-path: release/*
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --verify-tag \
+            --title "ForgeOS ${{ steps.meta.outputs.version }}" \
+            --notes-file build/RELEASE_NOTES.md \
+            --prerelease
+      - name: Upload workflow artifact copy
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgeos-${{ steps.meta.outputs.version }}-release-assets
+          path: release/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90

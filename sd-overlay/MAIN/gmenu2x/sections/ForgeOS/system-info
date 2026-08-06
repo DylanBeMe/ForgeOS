@@ -1,0 +1,4 @@
+title=System Overview
+description=View device and firmware details
+exec=/mnt/apps/forge-tools/system-info.sh
+icon=/mnt/apps/forge-tools/icon-info.png

@@ -1,0 +1,14 @@
+changelog:
+  exclude:
+    labels: [skip-changelog]
+  categories:
+    - title: New features
+      labels: [feature, enhancement]
+    - title: Fixes
+      labels: [bug, fix]
+    - title: Device ports
+      labels: [port]
+    - title: Documentation and maintenance
+      labels: [documentation, maintenance]
+    - title: Other changes
+      labels: ['*']

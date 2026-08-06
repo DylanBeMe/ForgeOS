@@ -1,0 +1,10 @@
+build/
+dist/
+release/
+host-backups/
+__pycache__/
+*.py[cod]
+*.o
+*.plist
+src/forgeshell/src/forgeshell
+.DS_Store

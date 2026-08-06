@@ -1,0 +1,39 @@
+name: Bug report
+description: Report a reproducible ForgeOS or ForgeShell problem
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes: {label: ForgeOS version, placeholder: "0.6.3"}
+    validations: {required: true}
+  - type: input
+    id: device
+    attributes: {label: Device and hardware revision, placeholder: "Powkiddy Q90"}
+    validations: {required: true}
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installation type
+      options: [Full image, Maintenance overlay, Generic Linux simulator, Source build]
+    validations: {required: true}
+  - type: textarea
+    id: steps
+    attributes: {label: Reproduction steps, description: Include the smallest reliable sequence.}
+    validations: {required: true}
+  - type: textarea
+    id: result
+    attributes: {label: Expected and actual result}
+    validations: {required: true}
+  - type: textarea
+    id: logs
+    attributes: {label: Logs and diagnostics, description: Paste text; do not upload ROMs, BIOS files, or personal saves.}
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety checks
+      options:
+        - label: I used a spare card or retained a known-good recovery card.
+          required: true
+        - label: I verified the release checksum.
+          required: true

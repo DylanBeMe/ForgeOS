@@ -1,0 +1,4 @@
+title=ROM Library Setup
+description=Create optional personal ROM folders
+exec=/mnt/apps/forge-tools/create-rom-folders.sh
+icon=/mnt/apps/forge-tools/icon-folders.png

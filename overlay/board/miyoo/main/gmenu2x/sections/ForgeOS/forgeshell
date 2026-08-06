@@ -1,0 +1,5 @@
+title=ForgeShell Beta
+description=Use the new ForgeOS launcher with GMenu2X recovery
+icon=/mnt/apps/forge-tools/icon-shell.png
+exec=/mnt/forgeshell/forgeshell-start.sh
+terminal=false

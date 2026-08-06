@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION="$(<"$ROOT_DIR/VERSION")"
+TARGET="${1:-}"
+
+usage() {
+  cat <<USAGE
+Usage: ./forge-build <target> [--check]
+
+Targets:
+  q90            Build the full MiyooCFW/Buildroot image
+  generic-linux  Build a portable desktop/simulator bundle
+USAGE
+}
+
+[[ -n "$TARGET" ]] || { usage >&2; exit 2; }
+shift
+PLATFORM_DIR="$ROOT_DIR/platforms/$TARGET"
+[[ -r "$PLATFORM_DIR/build.env" ]] || { echo "Unknown target: $TARGET" >&2; exit 2; }
+# shellcheck source=/dev/null
+source "$PLATFORM_DIR/build.env"
+"$ROOT_DIR/tools/validate-platform.py" "$PLATFORM_DIR/platform.ini"
+"$ROOT_DIR/tools/validate-theme.py"
+if [[ "${1:-}" == --check ]]; then
+  echo "Target $TARGET is valid."
+  exit 0
+fi
+
+case "$FORGE_BUILD_BACKEND" in
+  miyoocfw-buildroot)
+    FORGE_TARGET="$TARGET" exec "$ROOT_DIR/build.sh"
+    ;;
+  generic-linux)
+    command -v sdl-config >/dev/null 2>&1 || {
+      echo "generic-linux build requires SDL 1.2 development files and sdl-config" >&2
+      exit 1
+    }
+    make -C "$ROOT_DIR/src/forgeshell/src" clean all \
+      CPPFLAGS="-DFORGESHELL_DEFAULT_PROFILE=\\\"profiles/device.ini\\\""
+    out="$ROOT_DIR/dist/forgeos-$FORGE_DEVICE_ID-$VERSION"
+    rm -rf "$out"
+    install -d "$out/bin" "$out/profiles" "$out/runtime/forgeshell" "$out/runtime/tools" "$out/runtime/roms/demo"
+    install -m 0755 "$ROOT_DIR/src/forgeshell/src/forgeshell" "$out/bin/forgeshell"
+    install -m 0644 "$PLATFORM_DIR/platform.ini" "$out/profiles/device.ini"
+    install -m 0644 "$PLATFORM_DIR/systems.ini" "$out/runtime/forgeshell/systems.ini"
+    install -m 0644 "$PLATFORM_DIR/tools.tsv" "$out/runtime/forgeshell/tools.tsv"
+    install -m 0644 "$ROOT_DIR/overlay/board/miyoo/main/forgeshell/theme.ini" "$out/runtime/forgeshell/theme.ini"
+    install -m 0644 "$ROOT_DIR/overlay/board/miyoo/main/forgeshell/config.default.ini" "$out/runtime/forgeshell/config.ini"
+    install -m 0755 "$PLATFORM_DIR/runtime/tools/"*.sh "$out/runtime/tools/"
+    printf 'demo\n' > "$out/runtime/roms/demo/Example.rom"
+    cat > "$out/run.sh" <<'RUN'
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+exec "$ROOT/bin/forgeshell" --profile "$ROOT/profiles/device.ini" \
+  --data-root "$ROOT/runtime" --home "$ROOT/runtime/forgeshell" \
+  --source "$ROOT/runtime/forgeshell/systems.ini" --windowed "$@"
+RUN
+    chmod 755 "$out/run.sh"
+    tar -C "$ROOT_DIR/dist" -czf "$out.tar.gz" "$(basename "$out")"
+    sha256sum "$out.tar.gz" > "$out.tar.gz.sha256"
+    echo "Created: $out.tar.gz"
+    ;;
+  *)
+    echo "Unsupported build backend: $FORGE_BUILD_BACKEND" >&2
+    exit 1
+    ;;
+esac

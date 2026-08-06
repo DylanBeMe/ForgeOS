@@ -1,0 +1,4 @@
+title=Boot Log
+description=View ForgeShell recovery and startup details
+exec=/mnt/apps/forge-tools/forgeshell-log.sh
+icon=/mnt/apps/forge-tools/icon-info.png

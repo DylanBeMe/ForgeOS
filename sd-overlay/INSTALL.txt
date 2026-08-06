@@ -1,0 +1,15 @@
+ForgeOS Q90 SD overlay 0.6.3
+
+This is an update-safe maintenance overlay for an existing MiyooCFW/ForgeOS
+card. It updates ForgeOS-owned artwork, maintenance tools, and GMenu2X entries.
+
+It deliberately does not install ForgeShell, ForgeShell-only launcher panels,
+/mnt/autoexec.sh, emulator binaries, boot options, device selection, brightness,
+or volume settings. Existing full-image ForgeShell launcher panels are preserved.
+ForgeShell and the refreshed emulator stack require a full ForgeOS image build.
+
+Recommended host installation:
+  ./install-overlay.sh /path/to/BOOT /path/to/main
+
+Preview changes first:
+  ./install-overlay.sh --dry-run /path/to/BOOT /path/to/main

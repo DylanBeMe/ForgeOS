@@ -1,0 +1,4 @@
+title=Performance Snapshot
+description=Record launcher memory, load, and cache metrics
+exec=/mnt/apps/forge-tools/performance-snapshot.sh
+icon=/mnt/apps/forge-tools/icon-speed.png

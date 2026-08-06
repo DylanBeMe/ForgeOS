@@ -1,0 +1,11 @@
+# id	title	meta	command	requires
+system-info	System Overview	Hardware	${tool_root}/system-info.sh	system_info
+emulator-overview	Emulator Overview	Versions	${tool_root}/emulator-overview.sh	always
+storage-health	Storage Check	SD health	${tool_root}/storage-health.sh	storage_health
+performance-mode	CPU Profile	Performance	${tool_root}/performance-mode.sh	cpu_profiles
+backup-saves	Save Backup	Protection	${tool_root}/backup-saves.sh	always
+create-rom-folders	ROM Library Setup	Folders	${tool_root}/create-rom-folders.sh	always
+forgeshell-log	Boot Log	Recovery	${tool_root}/forgeshell-log.sh	always
+hardware-check	Hardware Check	Test report	${tool_root}/hardware-check.sh	system_info
+performance-snapshot	Performance Snapshot	Metrics	${tool_root}/performance-snapshot.sh	system_info
+reset-forgeshell	Reset ForgeShell	Last resort	${tool_root}/reset-forgeshell.sh	always

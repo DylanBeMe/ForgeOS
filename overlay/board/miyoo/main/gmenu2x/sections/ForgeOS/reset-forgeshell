@@ -1,0 +1,4 @@
+title=Reset ForgeShell
+description=Restore settings, safe mode, or GMenu2X
+exec=/mnt/apps/forge-tools/reset-forgeshell.sh
+icon=/mnt/apps/forge-tools/icon-shell.png

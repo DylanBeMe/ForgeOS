@@ -1,0 +1,4 @@
+title=Hardware Check
+description=Create a device test report
+exec=/mnt/apps/forge-tools/hardware-check.sh
+icon=/mnt/apps/forge-tools/icon-storage.png

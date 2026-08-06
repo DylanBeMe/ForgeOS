@@ -1,0 +1,4 @@
+title=Emulator Overview
+description=View installed cores and source versions
+exec=/mnt/apps/forge-tools/emulator-overview.sh
+icon=/mnt/apps/forge-tools/icon-emulators.png

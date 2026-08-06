@@ -1,0 +1,4 @@
+title=CPU Profile
+description=Select a safe temporary performance profile
+exec=/mnt/apps/forge-tools/performance-mode.sh
+icon=/mnt/apps/forge-tools/icon-speed.png

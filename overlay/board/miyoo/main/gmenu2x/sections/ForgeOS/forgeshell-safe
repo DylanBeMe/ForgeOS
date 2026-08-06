@@ -1,0 +1,6 @@
+title=ForgeShell Safe Mode
+description=Start without scans, metadata, or game overrides
+icon=/mnt/apps/forge-tools/icon-shell.png
+exec=/mnt/forgeshell/forgeshell-start.sh
+params=--safe-mode
+terminal=false

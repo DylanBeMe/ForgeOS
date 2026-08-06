@@ -1,0 +1,3 @@
+# id	title	meta	command	requires
+system-info	System Overview	Development host	${tool_root}/system-info.sh	system_info
+storage-health	Storage Check	Runtime folder	${tool_root}/storage-health.sh	storage_health

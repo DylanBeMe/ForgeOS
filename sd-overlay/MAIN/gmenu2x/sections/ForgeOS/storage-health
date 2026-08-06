@@ -1,0 +1,4 @@
+title=Storage Check
+description=Review SD card and filesystem status
+exec=/mnt/apps/forge-tools/storage-health.sh
+icon=/mnt/apps/forge-tools/icon-storage.png
