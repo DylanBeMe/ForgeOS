@@ -75,7 +75,7 @@ jobs:
             dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.emulators.txt
             dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.upstream-ref
       - name: Upload Q90 image
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: forgeos-q90-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.short_sha }}
           path: |
