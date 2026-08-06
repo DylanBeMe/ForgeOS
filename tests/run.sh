@@ -35,13 +35,17 @@ custom_dialog_theme=$(DIALOGRC=/tmp/custom-dialogrc \
 python3 tools/validate-theme.py >/dev/null
 cp overlay/board/miyoo/main/forgeshell/theme.ini "$tmp/bad-theme.ini"
 printf 'accent=#12345G\n' >> "$tmp/bad-theme.ini"
-! python3 tools/validate-theme.py --theme "$tmp/bad-theme.ini" >/dev/null 2>&1
+if python3 tools/validate-theme.py --theme "$tmp/bad-theme.ini" >/dev/null 2>&1; then
+  fail "theme validator accepted an invalid accent color"
+fi
 for panel in overlay/board/miyoo/main/apps/forge-tools/*.sh; do
   case "$(basename "$panel")" in common.sh|cpu-profile-control.sh) continue ;; esac
   grep -q 'common.sh' "$panel" || fail "maintenance panel bypasses shared theme: $panel"
 done
-! grep -RIEq 'Y clear|RESET requests recovery|L/R pages' \
-  src/forgeshell/src/ui tools/render-forgeshell-preview.py
+if grep -RIEq 'Y clear|RESET requests recovery|L/R pages' \
+  src/forgeshell/src/ui tools/render-forgeshell-preview.py; then
+  fail "legacy control hints remain in the ForgeShell UI"
+fi
 if command -v shellcheck >/dev/null 2>&1; then
   shellcheck -x build.sh forge-build install-overlay.sh tools/forge-build tools/run-simulator.sh \
     tools/sync-sd-overlay.sh tools/generate-source-manifest.sh \
@@ -135,7 +139,9 @@ grep -q '^Version metadata unresolved: 0$' "$tmp/package/dist/forgeos-q90-$VERSI
 grep -q 'retroarch-test-rev' "$tmp/package/dist/forgeos-q90-$VERSION.img.emulators.txt"
 grep -q 'gpsp-core-test-rev' "$tmp/package/dist/forgeos-q90-$VERSION.img.emulators.txt"
 grep -q 'gpsp-standalone-test-rev' "$tmp/package/dist/forgeos-q90-$VERSION.img.emulators.txt"
-! grep -q 'assets' "$tmp/package/dist/forgeos-q90-$VERSION.img.emulators.txt"
+if grep -q 'assets' "$tmp/package/dist/forgeos-q90-$VERSION.img.emulators.txt"; then
+  fail "emulator manifest unexpectedly includes assets"
+fi
 [[ -f "$tmp/build-work/board/miyoo/main/forgeos-emulators.txt" ]]
 grep -q "^ForgeOS Powkiddy Q90 $VERSION$" "$tmp/build-work/board/miyoo/main/forgeos-version.txt"
 grep -q '^Target: q90$' "$tmp/build-work/board/miyoo/main/forgeos-version.txt"
@@ -144,7 +150,9 @@ grep -q '^Target: q90$' "$tmp/build-work/board/miyoo/main/forgeos-version.txt"
 [[ -f "$tmp/build-work/package/miyoo/forgeshell/src/main.c" ]]
 [[ ! -e "$tmp/build-work/package/miyoo/forgeshell/src/host-test.o" ]]
 [[ ! -e "$tmp/build-work/package/miyoo/forgeshell/src/forgeshell" ]]
-! find "$tmp/build-work/package/miyoo/forgeshell" -name '*.o' -print -quit | grep -q .
+if find "$tmp/build-work/package/miyoo/forgeshell" -name '*.o' -print -quit | grep -q .; then
+  fail "packaged ForgeShell tree contains object files"
+fi
 grep -q 'package/miyoo/forgeshell/Config.in' "$tmp/build-work/package/miyoo/Config.in"
 grep -q '^BR2_PACKAGE_FORGESHELL=y$' "$tmp/build-work/configs/miyoo_uclibc_defconfig"
 [[ -x "$tmp/build-work/board/miyoo/main/autoexec.sh" ]]
@@ -292,7 +300,9 @@ python3 tools/build-library-index.py "$tmp/index.csv" --output "$tmp/index-out" 
 grep -Fq $'/mnt/roms/GBA/Game.gba\tGame Title\t' "$tmp/index-out/library/metadata.tsv"
 grep -Fq $'/mnt/roms/GBA/Game.gba\tgba-alt\tbalanced\toriginal\tnearest\t1\t/mnt/bios/gba.bin' \
   "$tmp/index-out/state/game-overrides.tsv"
-! grep -q 'Plain.sfc' "$tmp/index-out/state/game-overrides.tsv"
+if grep -q 'Plain.sfc' "$tmp/index-out/state/game-overrides.tsv"; then
+  fail "library index emitted an empty override for Plain.sfc"
+fi
 cat > "$tmp/index-invalid.csv" <<'CSV'
 path,cpu_profile
 /mnt/roms/GBA/Game.gba,unsafe
@@ -313,7 +323,9 @@ storage_output=$(PATH="$tmp/fakebin:$PATH" \
   FORGE_DIALOG_BIN=forgeos-no-dialog FORGE_NO_SLEEP=1 \
   overlay/board/miyoo/main/apps/forge-tools/storage-health.sh)
 grep -q 'No matching storage issue detected' <<<"$storage_output"
-! grep -q 'before trusting this SD card' <<<"$storage_output"
+if grep -q 'before trusting this SD card' <<<"$storage_output"; then
+  fail "normal MMC discovery was reported as a storage error"
+fi
 cat > "$tmp/fakebin/dmesg" <<'SH'
 #!/bin/sh
 printf '%s\n' 'mmc0: error -110 whilst initialising SD card'
@@ -403,7 +415,9 @@ profile_output=$("$portable_main_bin" --profile platforms/generic-linux/platform
   --data-root "$tmp/sandbox.root" --validate-profile)
 grep -Fqx "data_root=$tmp/sandbox.root" <<<"$profile_output"
 grep -Fqx "source=$tmp/sandbox.root/forgeshell/systems.ini" <<<"$profile_output"
-! grep -q 'systems/mnt/data' <<<"$profile_output"
+if grep -q 'systems/mnt/data' <<<"$profile_output"; then
+  fail "portable profile joined the data root incorrectly"
+fi
 q90_profile_output=$(FORGE_TOOL_ROOT="$tmp/custom-tools" "$portable_main_bin" \
   --profile platforms/q90/platform.ini --validate-profile)
 grep -Fqx "tool_root=$tmp/custom-tools" <<<"$q90_profile_output"
@@ -496,7 +510,9 @@ printf 'launcher_mode=gmenu2x\n' > "$tmp/shell-home/config.ini"
 FORGESHELL_HOME="$tmp/shell-home" FORGESHELL_BIN="$tmp/fake-forgeshell" \
   FORGESHELL_TEST_TRACE="$trace" "$tmp/shell-home/boot-dispatch.sh"
 grep -q '^gmenu$' "$trace"
-! grep -q '^shell$' "$trace"
+if grep -q '^shell$' "$trace"; then
+  fail "gmenu2x launcher mode unexpectedly started ForgeShell"
+fi
 
 printf 'launcher_mode=forgeshell\n' > "$tmp/shell-home/config.ini"
 : > "$trace"
@@ -530,7 +546,9 @@ FORGESHELL_HOME="$tmp/shell-home" FORGESHELL_BIN="$tmp/fake-forgeshell" \
   FORGESHELL_TEST_ARGS_FILE="$tmp/marker-safe-args" "$tmp/shell-home/boot-dispatch.sh"
 grep -qx -- '--safe-mode' "$tmp/marker-safe-args"
 [[ ! -e "$tmp/shell-home/state/force-safe-mode" ]]
-! grep -Eq '^[[:space:]]*sync[[:space:]]*$' "$tmp/shell-home/forgeshell-start.sh"
+if grep -Eq '^[[:space:]]*sync[[:space:]]*$' "$tmp/shell-home/forgeshell-start.sh"; then
+  fail "ForgeShell startup script contains an unconditional sync"
+fi
 printf '2\n' > "$tmp/shell-home/state/boot-failures"
 : > "$trace"
 FORGESHELL_HOME="$tmp/shell-home" FORGESHELL_BIN="$tmp/fake-forgeshell" \
@@ -611,8 +629,12 @@ unzip -tq "$overlay_zip" >/dev/null
 unzip -Z1 "$source_zip" > "$tmp/source-zip-files.txt"
 grep -q "/overlay/board/miyoo/main/gmenu2x/sections/ForgeOS/forgeshell$" \
   "$tmp/source-zip-files.txt"
-! grep -q "/src/forgeshell/src/forgeshell$" "$tmp/source-zip-files.txt"
-! grep -Eq '\.o$|__pycache__|\.pyc$' "$tmp/source-zip-files.txt"
+if grep -q "/src/forgeshell/src/forgeshell$" "$tmp/source-zip-files.txt"; then
+  fail "source archive contains the generated ForgeShell binary"
+fi
+if grep -Eq '\.o$|__pycache__|\.pyc$' "$tmp/source-zip-files.txt"; then
+  fail "source archive contains generated build or Python cache files"
+fi
 grep -q "forgeos-$VERSION-source.zip" "$tmp/release/SHA256SUMS"
 [[ -s "$tmp/release/forgeos-q90-$VERSION.img.xz" ]]
 xz -t "$tmp/release/forgeos-q90-$VERSION.img.xz"
@@ -633,7 +655,9 @@ grep -q "actions/checkout@v7" .github/workflows/ci.yml
 grep -q "actions/cache@v6" .github/workflows/q90-image.yml
 grep -q "actions/upload-artifact@v7" .github/workflows/ci.yml
 grep -q "actions/attest@v4" .github/workflows/release.yml
-! grep -RqsE 'actions/(checkout@v[1-6]|cache@v[1-5]|upload-artifact@v[1-6])' .github/workflows
+if grep -RqsE 'actions/(checkout@v[1-6]|cache@v[1-5]|upload-artifact@v[1-6])' .github/workflows; then
+  fail "workflow references an outdated core GitHub Action"
+fi
 grep -q "^## $VERSION" CHANGELOG.md
 grep -q "^ForgeOS Q90 $VERSION$" overlay/board/miyoo/main/forgeos-version.txt
 grep -q 'FORGESHELL BETA' <(strings assets/forgeos-splash.bmp 2>/dev/null || true) || true

@@ -71,11 +71,13 @@ cp -a "$ROOT_DIR/docs/performance-results.csv" "$OUT_DIR/q90-forgeos-$VERSION-pe
 cp -a "$ROOT_DIR/HARDWARE-TEST.md" "$OUT_DIR/q90-forgeos-$VERSION-hardware-test.md"
 cp -a "$ROOT_DIR/RELEASE-CHECKLIST.md" "$OUT_DIR/forgeos-$VERSION-release-checklist.md"
 cp -a "$ROOT_DIR/REVIEW.md" "$OUT_DIR/forgeos-$VERSION-review.md"
+checksum_file="$STAGE/SHA256SUMS"
 (
   cd "$OUT_DIR"
   find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\0' |
-    LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS
-)
+    LC_ALL=C sort -z | xargs -0 sha256sum
+) > "$checksum_file"
+mv "$checksum_file" "$OUT_DIR/SHA256SUMS"
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   {

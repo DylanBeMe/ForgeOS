@@ -150,7 +150,7 @@ a7069e6f0cdba148563efc1862e55309da3c77c0f679030000966163bb860588  ./tests/forges
 bb7f27d4f812ea341bd7410983160f3a77163463cbe2d46ddb0d35ec8cd1a9f6  ./tests/forgeshell/stubs/SDL/SDL.h
 b4afb7b7a7fcd1d199c87bfef31edf119e107c03bdef99aa44bfa4422eb3fc59  ./tests/forgeshell/stubs/SDL/SDL_ttf.h
 a8de5a790e174053ed540ff03669d50096e80aec4a3750d4e4cd5004bca35e60  ./tests/portability/platform_test.c
-54dfd9b949f1e4b09c1d207787a47d2052094734a4461625fce5d5c9471be0eb  ./tests/run.sh
+ac904570ce2189d31d41af4cc861e8966aa269c4d20ed0428a9650319e622a87  ./tests/run.sh
 54ab173d5d7ad7fe0de7aa94abc6c854d4c2ed1f1c7a642597e1747754e97f81  ./tools/build-library-index.py
 a4dad95d74a70ceae872c92db5a59bb967262fdb156bc7a5552bac48f54190dc  ./tools/ci/install-deps.sh
 3e04f7ce7c63b7edfc7498ab281670277dd9ce27f0d2ac7d8ec3944397ad0c78  ./tools/forge-build
@@ -158,7 +158,7 @@ aeecff0686bdb0c1c899035a2b6b2660642340bb0c1ccfa58ed8340f49f6a850  ./tools/genera
 912cfe9b82560b3608c7f2d18f2f96d301632b9729ebbd64ce2f4654b1e5a83c  ./tools/generate-release-notes.py
 e7c2b484fea82e4459161c28fdafc581127c0903659dc6d985066dcb570c7a9a  ./tools/generate-source-manifest.sh
 1e62fc5865ae6db2199029a9826df128cf3848cfd3d38526e5600c023f018584  ./tools/new-platform.py
-c52186bf8d5ff6b9bdda69b46c2add865469738f5dcc626169b5999cdade84be  ./tools/package-release.sh
+0341a025032e4cd0ed70174e6da8e4a873ea7edc84e77eae10bb2edb22f60b18  ./tools/package-release.sh
 b51bee5b66b7d55050cd48f7efc46bf1f33379e8c3ac833ef61a4e3c7f0bffc7  ./tools/record-compatibility.py
 cf17a0fd8911968413dcf524c75f80dc0b4dd73af1fd39b6f6b472c33e820e98  ./tools/render-forgeshell-preview.py
 035372c46aee08cecbd3772e1b8aaa4b319f84178c8e725fda9f76063fc1624e  ./tools/run-simulator.sh
