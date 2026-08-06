@@ -40,7 +40,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
       - name: Cache Buildroot downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: build/downloads
           key: q90-downloads-${{ runner.os }}-${{ steps.meta.outputs.upstream }}
