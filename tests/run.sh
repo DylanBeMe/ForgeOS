@@ -629,7 +629,11 @@ grep -q "^name: CI$" .github/workflows/ci.yml
 grep -q "^name: Q90 image$" .github/workflows/q90-image.yml
 grep -q "^name: Publish release$" .github/workflows/release.yml
 grep -q "gh release create" .github/workflows/release.yml
+grep -q "actions/checkout@v7" .github/workflows/ci.yml
+grep -q "actions/cache@v6" .github/workflows/q90-image.yml
+grep -q "actions/upload-artifact@v7" .github/workflows/ci.yml
 grep -q "actions/attest@v4" .github/workflows/release.yml
+! grep -RqsE 'actions/(checkout@v[1-6]|cache@v[1-5]|upload-artifact@v[1-6])' .github/workflows
 grep -q "^## $VERSION" CHANGELOG.md
 grep -q "^ForgeOS Q90 $VERSION$" overlay/board/miyoo/main/forgeos-version.txt
 grep -q 'FORGESHELL BETA' <(strings assets/forgeos-splash.bmp 2>/dev/null || true) || true

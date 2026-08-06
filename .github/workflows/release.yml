@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 300
     steps:
       - name: Check out tagged source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Install dependencies
@@ -40,7 +40,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
       - name: Cache Buildroot downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: build/downloads
           key: q90-downloads-${{ runner.os }}-${{ steps.meta.outputs.upstream }}
@@ -88,7 +88,7 @@ jobs:
             --notes-file build/RELEASE_NOTES.md \
             --prerelease
       - name: Upload workflow artifact copy
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: forgeos-${{ steps.meta.outputs.version }}-release-assets
           path: release/*

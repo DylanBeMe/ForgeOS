@@ -9,6 +9,7 @@
 - Theme loading is transactional: malformed custom themes now fall back entirely to the built-in Midnight Mint palette rather than leaving a mixed interface.
 - First-run completion writes related settings in one atomic update, and failed per-game-option saves restore the previous in-memory value.
 - Onboarding and Game Options no longer advertise page controls that are inactive in those states.
+- GitHub Actions dependencies now use Node.js 24-native releases (`checkout@v7`, `cache@v6`, and `upload-artifact@v7`).
 
 ### Fixed
 
@@ -21,6 +22,7 @@
 - Critical runtime environment failures being ignored during startup.
 - Overlong state or manifest lines being silently skipped.
 - A duplicated Clang analyzer invocation in the local test harness.
+- CI failures and deprecation warnings caused by actions still running on the retired Node.js 20 runtime.
 
 ### Performance
 

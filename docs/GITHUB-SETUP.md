@@ -16,3 +16,7 @@ The Q90 image workflow can also be run manually from the Actions tab. Tagged
 releases are created only when a pushed tag exactly matches `v$(cat VERSION)`.
 Artifact attestations work for public repositories on current GitHub plans and
 for eligible private repositories.
+
+The workflows use Node.js 24-native GitHub Actions. Self-hosted runners must be
+version `2.327.1` or newer; GitHub-hosted `ubuntu-24.04` runners already meet
+that requirement.
