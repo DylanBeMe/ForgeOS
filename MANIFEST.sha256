@@ -29,7 +29,7 @@ c9f56eb9348cbc8345bdaea7ca24c9f960e1598af05472794760a2682ff07a8c  ./VERSION
 eb4b16ae7da4a6e43a0091a91ff835b3a5f1ecb3e1b36c1bf5343072bf071c10  ./assets/forgeos-splash.png
 a96f96e85f003dd8fbfc3e33c20430373ec16d35a092801f6c1d70b332583f4d  ./assets/forgeshell-pages.png
 81b892a41b4c3cfbd4e8379a5fd16e133fd03aa1de166cb5cf3a5fdd510b781e  ./assets/theme-preview.png
-0f35bcae3656106d767edcdfa4c196fd4130211d8754f48e55ecad9db5df81d5  ./build.sh
+f9375eed34c784beac8d5cf35dc249a09eacf8c8567ee610d43159738d7bc0ce  ./build.sh
 948a2906265444c22c6e4cc0d3883d5412c0d009d6f8dffc044c54c2cbeba8ca  ./docs/BUILDING.md
 c84ea9ffbf9765a71db14ab7ba328cf23e767540eadec03bde2badcacb5af830  ./docs/GITHUB-SETUP.md
 470f767e0ee290644ba18145fd4c318f8cd66a628330fbeaff13a60075e041c8  ./docs/PLATFORM-SCHEMA.md

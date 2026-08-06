@@ -85,6 +85,63 @@ elif [[ -n "$previous_overlay_hash" && "$previous_overlay_hash" != "$overlay_has
 fi
 printf '%s\n' "$resolved_ref" > "$OWNED_MARKER"
 printf '%s\n' "$overlay_hash" > "$OVERLAY_MARKER"
+
+# Buildroot 2022.02.x generated its -br1 VCS archives with GNU tar <= 1.34.
+# GNU tar 1.35 changed the devmajor/devminor header representation, which
+# changes archive hashes even though the extracted source tree is identical.
+# Backport Buildroot's compatibility check so it builds and uses host-tar 1.34.
+tar_check="$WORKDIR/support/dependencies/check-host-tar.sh"
+if [[ -f "$tar_check" ]]; then
+  python3 - "$tar_check" <<'PY_TAR_CHECK'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+if "major_max=1\nminor_max=34" not in text:
+    old = """major_min=1
+minor_min=27
+
+if [ $major -lt $major_min ]; then
+"""
+    new = """major_min=1
+minor_min=27
+
+# Maximal version = 1.34 (1.35 changed devmajor/devminor for files)
+major_max=1
+minor_max=34
+
+if [ $major -lt $major_min -o $major -gt $major_max ]; then
+"""
+    if old not in text:
+        raise SystemExit("could not patch Buildroot tar version check")
+    text = text.replace(old, new, 1)
+
+    old = """if [ $major -eq $major_min -a $minor -lt $minor_min ]; then
+	# echo nothing: no suitable tar found
+	exit 1
+fi
+
+# valid
+"""
+    new = """if [ $major -eq $major_min -a $minor -lt $minor_min ]; then
+	# echo nothing: no suitable tar found
+	exit 1
+fi
+
+if [ $major -eq $major_max -a $minor -gt $minor_max ]; then
+	# echo nothing: no suitable tar found
+	exit 1
+fi
+
+# valid
+"""
+    if old not in text:
+        raise SystemExit("could not finish patching Buildroot tar version check")
+    path.write_text(text.replace(old, new, 1))
+PY_TAR_CHECK
+fi
+
 source_date_epoch=$(git -C "$WORKDIR" show -s --format=%ct HEAD)
 export SOURCE_DATE_EPOCH="$source_date_epoch" TZ=UTC LC_ALL=C
 
