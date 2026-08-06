@@ -1,5 +1,6 @@
 #!/bin/sh
 set -u
+# shellcheck source=overlay/board/miyoo/main/apps/forge-tools/common.sh
 . "$(dirname "$0")/common.sh"
 main=$(forge_main_mount 2>/dev/null || true)
 [ -n "$main" ] || main=/mnt
@@ -15,7 +16,7 @@ start=$(date +%s 2>/dev/null || printf 0)
   cat /mnt/forgeos-version.txt 2>/dev/null || true
   /usr/bin/forgeshell --version 2>/dev/null || true
   printf '\n[Kernel]\n'; uname -a 2>/dev/null || true
-  printf '\n[Memory]\n'; cat /proc/meminfo 2>/dev/null | sed -n '1,12p'
+  printf '\n[Memory]\n'; sed -n '1,12p' /proc/meminfo 2>/dev/null || true
   printf '\n[CPU]\n'; cat /proc/cpuinfo 2>/dev/null || true
   printf '\n[Frequency]\n'
   for f in /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq \

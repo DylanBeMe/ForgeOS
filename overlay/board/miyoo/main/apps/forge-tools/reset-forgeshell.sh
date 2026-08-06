@@ -1,5 +1,6 @@
 #!/bin/sh
 set -u
+# shellcheck source=overlay/board/miyoo/main/apps/forge-tools/common.sh
 . "$(dirname "$0")/common.sh"
 HOME_DIR=${FORGESHELL_HOME:-/mnt/forgeshell}
 CONFIG=$HOME_DIR/config.ini
@@ -22,7 +23,9 @@ case $choice in
     ;;
   defaults)
     stamp=$(date +%Y%m%d-%H%M%S 2>/dev/null || printf current)
-    [ -r "$CONFIG" ] && cp "$CONFIG" "$STATE/config-before-reset-$stamp.ini" 2>/dev/null || true
+    if [ -r "$CONFIG" ]; then
+      cp "$CONFIG" "$STATE/config-before-reset-$stamp.ini" 2>/dev/null || true
+    fi
     cat > "$CONFIG.tmp.$$" <<'CFG'
 # ForgeShell settings reset by the recovery tool.
 launcher_mode=gmenu2x

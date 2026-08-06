@@ -8,7 +8,7 @@ FORGE_DIALOG_BIN=${FORGE_DIALOG_BIN:-dialog}
 FORGE_TMPDIR=${FORGE_TMPDIR:-/tmp}
 FORGE_UI_HEIGHT=${FORGE_UI_HEIGHT:-18}
 FORGE_UI_WIDTH=${FORGE_UI_WIDTH:-54}
-FORGE_TOOL_DIR=${FORGE_TOOL_DIR:-$(CDPATH= cd "$(dirname "$0")" 2>/dev/null && pwd)}
+FORGE_TOOL_DIR=${FORGE_TOOL_DIR:-$(CDPATH='' cd "$(dirname "$0")" 2>/dev/null && pwd)}
 
 # Match ForgeShell's Midnight Mint palette as closely as the Linux-console
 # 16-colour dialog renderer permits. Respect an explicit user DIALOGRC.
@@ -149,7 +149,8 @@ forge_is_mountpoint() {
 forge_main_mount() {
   forge_candidates=${FORGE_MAIN_CANDIDATES:-"/mnt /media/main /main"}
   for forge_path in $forge_candidates; do
-    [ -d "$forge_path" ] && [ -w "$forge_path" ] || continue
+    [ -d "$forge_path" ] || continue
+    [ -w "$forge_path" ] || continue
     if [ "${FORGE_ALLOW_UNMOUNTED:-0}" = 1 ] || \
        forge_is_mountpoint "$forge_path" || \
        [ -d "$forge_path/gmenu2x" ] || \
@@ -167,7 +168,8 @@ forge_rom_mount() {
 
   forge_rom_candidates=${FORGE_ROM_CANDIDATES:-"/mnt/roms /media/roms /roms"}
   for forge_path in $forge_rom_candidates; do
-    [ -d "$forge_path" ] && [ -w "$forge_path" ] || continue
+    [ -d "$forge_path" ] || continue
+    [ -w "$forge_path" ] || continue
     case "$forge_path/" in
       "$forge_main"/*) printf '%s\n' "$forge_path"; return 0 ;;
     esac

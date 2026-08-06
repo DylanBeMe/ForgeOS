@@ -4,7 +4,7 @@ set -u
 HOME_DIR=${FORGESHELL_HOME:-/mnt/forgeshell}
 BIN=${FORGESHELL_BIN:-/usr/bin/forgeshell}
 PROFILE=${FORGESHELL_PROFILE:-$HOME_DIR/device.ini}
-export FORGESHELL_PROFILE=$PROFILE
+export FORGESHELL_PROFILE="$PROFILE"
 STATE_DIR=$HOME_DIR/state
 FAIL_FILE=$STATE_DIR/boot-failures
 BOOT_OK=$STATE_DIR/boot-ok

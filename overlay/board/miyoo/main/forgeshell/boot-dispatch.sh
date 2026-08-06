@@ -12,7 +12,7 @@ POWEROFF_BIN=${FORGESHELL_POWEROFF_BIN:-/sbin/poweroff}
 config_value() {
     key=$1
     [ -r "$CONFIG" ] || return 0
-    sed -n "s/^[[:space:]]*$key[[:space:]]*=[[:space:]]*\\([^#;[:space:]]*\\).*/\\1/p" "$CONFIG" | tail -n 1
+    sed -n "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*\\([^#;[:space:]]*\\).*/\\1/p" "$CONFIG" | tail -n 1
 }
 
 configured=$(config_value launcher_mode)
@@ -21,7 +21,11 @@ case $(config_value safe_mode_next_boot) in
     1|yes|true|on)
         SAFE_MODE=1
         if [ -w "$CONFIG" ]; then
-            awk 'BEGIN{done=0} /^[[:space:]]*safe_mode_next_boot[[:space:]]*=/ {print "safe_mode_next_boot=0"; done=1; next} {print} END{if(!done) print "safe_mode_next_boot=0"}'                 "$CONFIG" > "$CONFIG.tmp.$$" 2>/dev/null && mv -f "$CONFIG.tmp.$$" "$CONFIG" || rm -f "$CONFIG.tmp.$$"
+            if ! awk 'BEGIN{done=0} /^[[:space:]]*safe_mode_next_boot[[:space:]]*=/ {print "safe_mode_next_boot=0"; done=1; next} {print} END{if(!done) print "safe_mode_next_boot=0"}' \
+                "$CONFIG" > "$CONFIG.tmp.$$" 2>/dev/null || \
+               ! mv -f "$CONFIG.tmp.$$" "$CONFIG"; then
+                rm -f "$CONFIG.tmp.$$"
+            fi
         fi
         ;;
 esac

@@ -9,7 +9,10 @@ GOV=$CPU_DIR/scaling_governor
 AVAILABLE_GOV=$CPU_DIR/scaling_available_governors
 
 numeric() { case ${1:-} in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
-read_value() { [ -r "$1" ] && sed -n '1p' "$1" 2>/dev/null || true; }
+read_value() {
+    [ -r "$1" ] || return 0
+    sed -n '1p' "$1" 2>/dev/null || true
+}
 write_value() {
     file=$1 value=$2
     [ -w "$file" ] || return 1
@@ -89,9 +92,15 @@ fi
 
 current_min=$(read_value "$MIN"); numeric "$current_min" || current_min=0
 if [ "$target" -lt "$current_min" ]; then
-    write_value "$MIN" "$low" && write_value "$MAX" "$target" || { restore_file "$state"; exit 1; }
+    if ! write_value "$MIN" "$low" || ! write_value "$MAX" "$target"; then
+        restore_file "$state"
+        exit 1
+    fi
 else
-    write_value "$MAX" "$target" && write_value "$MIN" "$low" || { restore_file "$state"; exit 1; }
+    if ! write_value "$MAX" "$target" || ! write_value "$MIN" "$low"; then
+        restore_file "$state"
+        exit 1
+    fi
 fi
 
 available=$(read_value "$AVAILABLE_GOV")

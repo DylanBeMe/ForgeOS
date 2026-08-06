@@ -1,5 +1,6 @@
 #!/bin/sh
 set -u
+# shellcheck source=overlay/board/miyoo/main/apps/forge-tools/common.sh
 . "$(dirname "$0")/common.sh"
 HOME_DIR=${FORGESHELL_HOME:-/mnt/forgeshell}
 LOG=$HOME_DIR/state/forgeshell.log
