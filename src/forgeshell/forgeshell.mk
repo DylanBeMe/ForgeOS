@@ -17,7 +17,7 @@ define FORGESHELL_BUILD_CMDS
 	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D) \
 		CC="$(TARGET_CC)" \
 		CFLAGS="$(TARGET_CFLAGS) -Os" \
-		CPPFLAGS="-DFORGESHELL_DEFAULT_PROFILE=\"/mnt/forgeshell/device.ini\"" \
+		CPPFLAGS='-DFORGESHELL_DEFAULT_PROFILE=\"/mnt/forgeshell/device.ini\"' \
 		LDFLAGS="$(TARGET_LDFLAGS)" \
 		SDL_CONFIG="$(STAGING_DIR)/usr/bin/sdl-config"
 endef
