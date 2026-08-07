@@ -116,7 +116,7 @@ cat > "$tmp/fake-upstream/Makefile" <<'MK'
 .PHONY: all miyoo_uclibc_defconfig
 all:
 	@mkdir -p output/images
-	@printf 'fake-image\n' > output/images/miyoo-cfw-test.img
+	@printf 'fake-image\n' > output/images/miyoo-br2_dist-test.img
 miyoo_uclibc_defconfig:
 	@:
 MK
