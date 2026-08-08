@@ -63,7 +63,7 @@ jobs:
         run: ./forge-build q90
       - name: Verify image outputs
         run: |
-          sha256sum -c "dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.sha256"
+          (cd dist && sha256sum -c "forgeos-q90-${{ steps.meta.outputs.version }}.img.sha256")
           test -s "dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.emulators.txt"
           test -s "dist/forgeos-q90-${{ steps.meta.outputs.version }}.img.upstream-ref"
       - name: Attest Q90 image
