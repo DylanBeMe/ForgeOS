@@ -16,4 +16,7 @@ fi
 
 # Return to /etc/main so it can mark the frontend active and handle its normal
 # respawn path. The exit fallback keeps this file safe to run directly too.
+# ShellCheck models return as always terminating, but it fails when this file is
+# executed rather than sourced, making the exit fallback intentionally reachable.
+# shellcheck disable=SC2317
 return "$status" 2>/dev/null || exit "$status"

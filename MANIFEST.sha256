@@ -67,7 +67,7 @@ fc9be80500b56ee3566844826d7087d54adad58e2ccb459937424641254583a8  ./overlay/boar
 50cba1d41b538d910046eb30144832aaa2918c1696f04cff32b617631fa6231d  ./overlay/board/miyoo/main/apps/forge-tools/reset-forgeshell.sh
 e52661ad1e1d85ee53ddfbdd50990c5b8a5373cf8a8f09cb2ab7f51c8e37786b  ./overlay/board/miyoo/main/apps/forge-tools/storage-health.sh
 f666b808c3c75463e34dcdfebbc064460929c7326ce01a46ef39d6442ec69a83  ./overlay/board/miyoo/main/apps/forge-tools/system-info.sh
-3683572e0d62a47c97261a90853eac9c905a9d72bdbe2591a9d567a0ff7b9e45  ./overlay/board/miyoo/main/autoexec.sh
+68084858f05209fe05b9fb407e423356a9eff02bcb70d7bfb167aa8fe34a0f5a  ./overlay/board/miyoo/main/autoexec.sh
 a2868efaffb6c219724dc5ad34e5f403a8d509fe06e9b4f30b9b553b39c5a231  ./overlay/board/miyoo/main/forgeos-version.txt
 7b3c0e3328e7f95dac07b57d86953e2e2e65b6509ab2d343887795c346def4b9  ./overlay/board/miyoo/main/forgeshell/boot-dispatch.sh
 575bdaf8ec16b4969e092b844e29856a356de5250157bacb5d4a6224ad4d2885  ./overlay/board/miyoo/main/forgeshell/config.default.ini
