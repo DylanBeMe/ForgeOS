@@ -1,5 +1,6 @@
 #!/bin/sh
 set -u
+umask 022
 
 HOME_DIR=${FORGESHELL_HOME:-/mnt/forgeshell}
 CONFIG=$HOME_DIR/config.ini
@@ -21,10 +22,12 @@ case $(config_value safe_mode_next_boot) in
     1|yes|true|on)
         SAFE_MODE=1
         if [ -w "$CONFIG" ]; then
-            if ! awk 'BEGIN{done=0} /^[[:space:]]*safe_mode_next_boot[[:space:]]*=/ {print "safe_mode_next_boot=0"; done=1; next} {print} END{if(!done) print "safe_mode_next_boot=0"}' \
-                "$CONFIG" > "$CONFIG.tmp.$$" 2>/dev/null || \
-               ! mv -f "$CONFIG.tmp.$$" "$CONFIG"; then
-                rm -f "$CONFIG.tmp.$$"
+            config_tmp=$CONFIG.tmp.$$
+            if ! awk 'BEGIN{done=0} /^[[:space:]]*safe_mode_next_boot[[:space:]]*=/ {if(!done){print "safe_mode_next_boot=0"; done=1} next} {print} END{if(!done) print "safe_mode_next_boot=0"}' \
+                "$CONFIG" > "$config_tmp" 2>/dev/null || \
+               ! chmod 0644 "$config_tmp" 2>/dev/null || \
+               ! mv -f "$config_tmp" "$CONFIG"; then
+                rm -f "$config_tmp"
             fi
         fi
         ;;

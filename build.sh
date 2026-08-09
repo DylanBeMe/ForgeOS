@@ -190,11 +190,27 @@ rsync -a --delete "$overlay_dir/main/gmenu2x/sections/ForgeOS/" \
   "$board_dir/main/gmenu2x/sections/ForgeOS/"
 rsync -a --delete "$overlay_dir/main/forgeshell/" \
   "$board_dir/main/forgeshell/"
+# Keep the runtime input labels/capabilities in lockstep with the selected target.
+install -m 0644 "$PLATFORM_DIR/platform.ini" "$board_dir/main/forgeshell/device.ini"
+# Zip extraction and host umasks can leave authored directories setgid/group-writable.
+# Normalize the modes that enter the firmware instead of relying on host metadata.
+for dir in \
+  "$board_dir/main/apps/forge-tools" \
+  "$board_dir/main/gmenu2x/sections/ForgeOS" \
+  "$board_dir/main/forgeshell"; do
+  find "$dir" -type d -exec chmod g-s {} + -exec chmod 0755 {} +
+done
+find "$board_dir/main/apps/forge-tools" -type f -exec chmod 0644 {} +
+find "$board_dir/main/apps/forge-tools" -type f -name '*.sh' -exec chmod 0755 {} +
+find "$board_dir/main/gmenu2x/sections/ForgeOS" -type f -exec chmod 0644 {} +
+find "$board_dir/main/forgeshell" -type f -exec chmod 0644 {} +
+find "$board_dir/main/forgeshell" -type f -name '*.sh' -exec chmod 0755 {} +
 install -m 0755 "$overlay_dir/main/autoexec.sh" "$board_dir/main/autoexec.sh"
 for file in console.cfg options.cfg miyoo-splash.bmp; do
   install -m 0644 "$overlay_dir/boot/$file" "$board_dir/boot/$file"
 done
-for file in .backlight.conf .volume.conf; do
+install -m 0755 "$overlay_dir/boot/firstboot.custom.sh" "$board_dir/boot/firstboot.custom.sh"
+for file in .backlight.conf .volume.conf logo.png logobg.png logo.wav; do
   install -m 0644 "$overlay_dir/main/$file" "$board_dir/main/$file"
 done
 printf 'ForgeOS %s %s\nTarget: %s\nUpstream: MiyooCFW Buildroot %s\nEmulator manifest: /mnt/forgeos-emulators.txt\n' \

@@ -224,41 +224,54 @@ invalid_link:
     return -1;
 }
 
-static int fs_extension_matches(const char *filename, const char *extensions) {
-    const char *dot;
-    char list[FS_MAX_VALUE];
-    char *save = NULL;
-    char *token;
-    if (filename == NULL) {
-        return 0;
-    }
-    if (extensions == NULL || extensions[0] == '\0') {
+static int fs_extension_token_matches(const char *dot, const char *token, size_t length) {
+    size_t dot_length;
+    size_t i;
+    if (dot == NULL || token == NULL || length == 0U) return 0;
+    if ((length == 1U && token[0] == '*') ||
+        (length == 3U && token[0] == '*' && token[1] == '.' && token[2] == '*')) {
         return 1;
     }
+    while (length > 0U && *token == '*') {
+        token++;
+        length--;
+    }
+    if (length == 0U) return 1;
+    dot_length = strlen(dot);
+    if (token[0] == '.') {
+        if (length != dot_length) return 0;
+        for (i = 0U; i < length; i++) {
+            if (tolower((unsigned char)token[i]) != tolower((unsigned char)dot[i])) return 0;
+        }
+        return 1;
+    }
+    if (dot[0] != '.' || length + 1U != dot_length) return 0;
+    for (i = 0U; i < length; i++) {
+        if (tolower((unsigned char)token[i]) != tolower((unsigned char)dot[i + 1U])) return 0;
+    }
+    return 1;
+}
+
+static int fs_extension_matches(const char *filename, const char *extensions) {
+    const char *dot;
+    const char *cursor;
+    if (filename == NULL) return 0;
+    if (extensions == NULL || extensions[0] == '\0') return 1;
     dot = strrchr(filename, '.');
-    if (dot == NULL) {
-        return 0;
-    }
-    if (fs_copy(list, sizeof(list), extensions) != 0) {
-        return 0;
-    }
-    for (token = strtok_r(list, ",;| ", &save); token != NULL;
-         token = strtok_r(NULL, ",;| ", &save)) {
-        if (strcmp(token, "*") == 0 || strcmp(token, "*.*") == 0) {
-            return 1;
-        }
-        while (*token == '*') {
-            token++;
-        }
-        if (*token != '.') {
-            char with_dot[64];
-            if (snprintf(with_dot, sizeof(with_dot), ".%s", token) < (int)sizeof(with_dot) &&
-                fs_casecmp(dot, with_dot) == 0) {
-                return 1;
-            }
-        } else if (fs_casecmp(dot, token) == 0) {
-            return 1;
-        }
+    if (dot == NULL) return 0;
+    cursor = extensions;
+    while (*cursor != '\0') {
+        const char *start;
+        size_t length;
+        while (*cursor != '\0' &&
+               (*cursor == ',' || *cursor == ';' || *cursor == '|' ||
+                isspace((unsigned char)*cursor))) cursor++;
+        start = cursor;
+        while (*cursor != '\0' &&
+               *cursor != ',' && *cursor != ';' && *cursor != '|' &&
+               !isspace((unsigned char)*cursor)) cursor++;
+        length = (size_t)(cursor - start);
+        if (fs_extension_token_matches(dot, start, length)) return 1;
     }
     return 0;
 }

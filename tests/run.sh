@@ -17,7 +17,8 @@ PYTHONPYCACHEPREFIX="$tmp/pycache" python3 -m py_compile \
   tools/generate-emulator-manifest.py tools/render-forgeshell-preview.py \
   tools/build-library-index.py tools/record-compatibility.py tools/validate-platform.py \
   tools/validate-theme.py tools/new-platform.py tools/generate-release-notes.py
-for script in overlay/board/miyoo/main/apps/forge-tools/*.sh \
+for script in overlay/board/miyoo/boot/firstboot.custom.sh \
+              overlay/board/miyoo/main/apps/forge-tools/*.sh \
               overlay/board/miyoo/main/forgeshell/*.sh \
               overlay/board/miyoo/main/autoexec.sh; do
   dash -n "$script"
@@ -32,11 +33,24 @@ custom_dialog_theme=$(DIALOGRC=/tmp/custom-dialogrc \
   sh -c '. "$1/common.sh"; printf "%s" "$DIALOGRC"' sh \
   "$ROOT_DIR/overlay/board/miyoo/main/apps/forge-tools")
 [[ "$custom_dialog_theme" == /tmp/custom-dialogrc ]]
+tmpfile_check=$(FORGE_TMPDIR="$tmp" \
+  FORGE_TOOL_DIR="$ROOT_DIR/overlay/board/miyoo/main/apps/forge-tools" \
+  sh -c 'umask 022; . "$1/common.sh"; before=$(umask); f=$(forge_tmpfile); after=$(umask); mode=$(stat -c %a "$f"); rm -f "$f"; printf "%s %s %s" "$before" "$after" "$mode"' sh \
+  "$ROOT_DIR/overlay/board/miyoo/main/apps/forge-tools")
+read -r before_umask after_umask tmpfile_mode <<<"$tmpfile_check"
+[[ "$before_umask" == "$after_umask" ]] || fail "forge_tmpfile changed the caller umask"
+[[ "$tmpfile_mode" == 600 ]] || fail "ForgeOS temporary report file is not private"
+cmp -s platforms/q90/platform.ini overlay/board/miyoo/main/forgeshell/device.ini || \
+  fail "Q90 runtime device profile drifted from the canonical platform profile"
 python3 tools/validate-theme.py >/dev/null
 cp overlay/board/miyoo/main/forgeshell/theme.ini "$tmp/bad-theme.ini"
 printf 'accent=#12345G\n' >> "$tmp/bad-theme.ini"
 if python3 tools/validate-theme.py --theme "$tmp/bad-theme.ini" >/dev/null 2>&1; then
   fail "theme validator accepted an invalid accent color"
+fi
+sed 's/^muted=.*/muted=#10283A/' overlay/board/miyoo/main/forgeshell/theme.ini > "$tmp/low-contrast-theme.ini"
+if python3 tools/validate-theme.py --theme "$tmp/low-contrast-theme.ini" >/dev/null 2>&1; then
+  fail "theme validator accepted unreadable muted text contrast"
 fi
 for panel in overlay/board/miyoo/main/apps/forge-tools/*.sh; do
   case "$(basename "$panel")" in common.sh|cpu-profile-control.sh) continue ;; esac
@@ -50,7 +64,8 @@ if command -v shellcheck >/dev/null 2>&1; then
   shellcheck -x build.sh forge-build install-overlay.sh tools/forge-build tools/run-simulator.sh \
     tools/sync-sd-overlay.sh tools/generate-source-manifest.sh \
     tools/package-release.sh tools/verify-release.sh tools/ci/install-deps.sh tests/run.sh
-  shellcheck -x -s sh overlay/board/miyoo/main/apps/forge-tools/*.sh \
+  shellcheck -x -s sh overlay/board/miyoo/boot/firstboot.custom.sh \
+    overlay/board/miyoo/main/apps/forge-tools/*.sh \
     overlay/board/miyoo/main/forgeshell/*.sh overlay/board/miyoo/main/autoexec.sh
 fi
 
@@ -146,6 +161,8 @@ fi
 grep -q "^ForgeOS Powkiddy Q90 $VERSION$" "$tmp/build-work/board/miyoo/main/forgeos-version.txt"
 grep -q '^Target: q90$' "$tmp/build-work/board/miyoo/main/forgeos-version.txt"
 [[ -f "$tmp/build-work/board/miyoo/main/forgeshell/device.ini" ]]
+cmp -s platforms/q90/platform.ini "$tmp/build-work/board/miyoo/main/forgeshell/device.ini" || \
+  fail "image builder did not install the selected target profile"
 [[ -f "$tmp/build-work/board/miyoo/main/forgeshell/tools.tsv" ]]
 [[ -f "$tmp/build-work/package/miyoo/forgeshell/src/main.c" ]]
 [[ ! -e "$tmp/build-work/package/miyoo/forgeshell/src/host-test.o" ]]
@@ -157,6 +174,14 @@ grep -q 'package/miyoo/forgeshell/Config.in' "$tmp/build-work/package/miyoo/Conf
 grep -q '^BR2_PACKAGE_FORGESHELL=y$' "$tmp/build-work/configs/miyoo_uclibc_defconfig"
 [[ -x "$tmp/build-work/board/miyoo/main/autoexec.sh" ]]
 [[ -x "$tmp/build-work/board/miyoo/main/forgeshell/forgeshell-start.sh" ]]
+[[ -x "$tmp/build-work/board/miyoo/boot/firstboot.custom.sh" ]]
+[[ -f "$tmp/build-work/board/miyoo/main/logo.png" ]]
+[[ -f "$tmp/build-work/board/miyoo/main/logobg.png" ]]
+[[ -f "$tmp/build-work/board/miyoo/main/logo.wav" ]]
+[[ "$(stat -c %a "$tmp/build-work/board/miyoo/main/forgeshell")" == 755 ]]
+[[ "$(stat -c %a "$tmp/build-work/board/miyoo/main/apps/forge-tools")" == 755 ]]
+[[ "$(stat -c %a "$tmp/build-work/board/miyoo/main/forgeshell/forgeshell-start.sh")" == 755 ]]
+[[ "$(stat -c %a "$tmp/build-work/board/miyoo/main/forgeshell/device.ini")" == 644 ]]
 touch "$tmp/build-work/output/keep-on-incremental-build"
 printf 'changed-host-object\n' >> "$tmp/package/src/forgeshell/src/host-test.o"
 printf '# changed host binary\n' >> "$tmp/package/src/forgeshell/src/forgeshell"
@@ -199,6 +224,9 @@ for full_entry in forgeshell forgeshell-log performance-snapshot reset-forgeshel
   printf 'user-full-image-entry-%s\n' "$full_entry" > "$tmp/card/MAIN/gmenu2x/sections/ForgeOS/$full_entry"
 done
 printf '#!/bin/sh\n' > "$tmp/card/MAIN/apps/forge-tools/obsolete.sh"
+printf 'old-logo\n' > "$tmp/card/MAIN/logo.png"
+printf 'old-bg\n' > "$tmp/card/MAIN/logobg.png"
+printf 'old-wav\n' > "$tmp/card/MAIN/logo.wav"
 dry_output=$(BACKUP_ROOT="$tmp/backups" ./install-overlay.sh --dry-run \
   "$tmp/card/BOOT" "$tmp/card/MAIN")
 grep -q '\*deleting.*obsolete' <<<"$dry_output"
@@ -217,6 +245,15 @@ PATH="$tmp/fakebin:$PATH" BACKUP_ROOT="$tmp/backups" \
 [[ -d "$tmp/backups/20260806-004100" ]]
 [[ -d "$tmp/backups/20260806-004100-1" ]]
 [[ -x "$tmp/card/MAIN/apps/forge-tools/system-info.sh" ]]
+[[ -f "$tmp/card/MAIN/logo.png" ]]
+[[ -f "$tmp/card/MAIN/logobg.png" ]]
+[[ -f "$tmp/card/MAIN/logo.wav" ]]
+cmp -s sd-overlay/MAIN/logo.png "$tmp/card/MAIN/logo.png"
+cmp -s sd-overlay/MAIN/logobg.png "$tmp/card/MAIN/logobg.png"
+cmp -s sd-overlay/MAIN/logo.wav "$tmp/card/MAIN/logo.wav"
+grep -q '^old-logo$' "$tmp/backups/20260806-004100/MAIN/logo.png"
+grep -q '^old-bg$' "$tmp/backups/20260806-004100/MAIN/logobg.png"
+grep -q '^old-wav$' "$tmp/backups/20260806-004100/MAIN/logo.wav"
 [[ -d "$tmp/card/MAIN/gmenu2x/sections/ForgeOS" ]]
 [[ ! -e "$tmp/card/MAIN/gmenu2x/sections/ForgeOS/obsolete" ]]
 for full_entry in forgeshell forgeshell-log performance-snapshot reset-forgeshell; do
@@ -230,6 +267,8 @@ grep -q '^CUSTOM_OPTION=1$' "$tmp/card/BOOT/options.cfg"
 grep -q '^CONSOLE_VARIANT=q90$' "$tmp/card/BOOT/console.cfg"
 grep -q '^3$' "$tmp/card/MAIN/.backlight.conf"
 grep -q '^27$' "$tmp/card/MAIN/.volume.conf"
+[[ "$(stat -c %a "$tmp/card/MAIN/apps/forge-tools")" == 755 ]]
+[[ "$(stat -c %a "$tmp/card/MAIN/gmenu2x/sections/ForgeOS")" == 755 ]]
 
 # ROM setup is idempotent and does not overwrite its notice.
 mkdir -p "$tmp/runtime/main/gmenu2x"
@@ -529,7 +568,7 @@ FORGESHELL_HOME="$tmp/shell-home" FORGESHELL_BIN="$tmp/fake-forgeshell" \
   FORGESHELL_TEST_ARGC_FILE="$tmp/shell-argc" \
   "$tmp/shell-home/forgeshell-start.sh"
 [[ "$(cat "$tmp/shell-home/state/boot-failures")" == 0 ]]
-[[ "$(cat "$tmp/shell-argc")" == 1 ]]
+[[ "$(cat "$tmp/shell-argc")" == 0 ]] || fail "manual ForgeShell launch was incorrectly marked as a boot"
 printf 'launcher_mode=forgeshell\nsafe_mode_next_boot=1\n' > "$tmp/shell-home/config.ini"
 : > "$trace"
 FORGESHELL_HOME="$tmp/shell-home" FORGESHELL_BIN="$tmp/fake-forgeshell" \

@@ -504,6 +504,16 @@ int main(void) {
                 library->games[gba_game].path));
             CHECK(!fs_library_system_supports_path(&wrong_root,
                                                    library->games[gba_game].path));
+            CHECK(fs_copy(alternate.romexts, sizeof(alternate.romexts),
+                          "*.GBA; zip | .7z") == 0);
+            CHECK(fs_library_system_supports_path(&alternate,
+                                                   library->games[gba_game].path));
+            CHECK(fs_copy(alternate.romexts, sizeof(alternate.romexts), "*.*") == 0);
+            CHECK(fs_library_system_supports_path(&alternate,
+                                                   library->games[gba_game].path));
+            CHECK(fs_copy(alternate.romexts, sizeof(alternate.romexts), ".zip") == 0);
+            CHECK(!fs_library_system_supports_path(&alternate,
+                                                    library->games[gba_game].path));
         }
 
         CHECK(snprintf(lkg_path, sizeof(lkg_path), "%s.last-good", config_path) <

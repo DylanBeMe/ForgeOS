@@ -49,6 +49,34 @@ def parse_assignments(path: Path) -> dict[str, str]:
     return values
 
 
+def relative_luminance(value: str) -> float:
+    channels = [int(value[index:index + 2], 16) / 255.0 for index in (1, 3, 5)]
+    linear = [channel / 12.92 if channel <= 0.04045 else
+              ((channel + 0.055) / 1.055) ** 2.4 for channel in channels]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def contrast_ratio(left: str, right: str) -> float:
+    high, low = sorted((relative_luminance(left), relative_luminance(right)), reverse=True)
+    return (high + 0.05) / (low + 0.05)
+
+
+def validate_contrast(values: dict[str, str], path: Path) -> None:
+    pairs = (
+        ("text", "background", 7.0),
+        ("text", "panel", 7.0),
+        ("muted", "background", 4.5),
+        ("muted", "panel", 4.5),
+        ("accent", "panel", 4.5),
+        ("text", "accent_soft", 4.5),
+        ("danger", "background", 4.5),
+    )
+    for foreground, background, minimum in pairs:
+        ratio = contrast_ratio(values[foreground], values[background])
+        if ratio < minimum:
+            fail(f"{path}: {foreground}/{background} contrast {ratio:.2f}:1 is below {minimum:.1f}:1")
+
+
 def validate_theme(path: Path) -> dict[str, str]:
     values = parse_assignments(path)
     allowed = set(COLOR_KEYS) | set(INT_RANGES) | set(PATH_KEYS)
@@ -71,6 +99,7 @@ def validate_theme(path: Path) -> dict[str, str]:
     for key in PATH_KEYS:
         if not values[key].startswith("/") or "\n" in values[key]:
             fail(f"{path}: {key} must be an absolute single-line path")
+    validate_contrast(values, path)
     return values
 
 

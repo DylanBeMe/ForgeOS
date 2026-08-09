@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import configparser
+import math
+import struct
+import wave
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
@@ -107,7 +110,7 @@ def footer(draw: ImageDraw.ImageDraw, labels: tuple[str, str, str | None],
     x = 9
     actions = (("accept", labels[0]), ("back", labels[1]), ("favorite", labels[2]))
     for action, label in actions:
-        if label is None:
+        if not label:
             continue
         button = LABELS[action]
         chip_width = max(15, int(draw.textlength(button, font=small)) + 8)
@@ -133,7 +136,7 @@ def page_image(page: str, index: int, theme: dict[str, str | int]) -> Image.Imag
         row(draw, 2, "Recent activity", "18 sessions", theme=theme)
         row(draw, 3, "Browse library", "247 games", theme=theme)
         draw.text((20, 174), "Library cache is ready", font=font(10), fill=str(theme["muted"]))
-        footer(draw, ("Open", "Home", None), theme)
+        footer(draw, ("Open", "", None), theme)
     elif page == "Library":
         header(draw, page, "Choose a system", index, theme)
         row(draw, 0, "All games", "247 games", theme=theme)
@@ -240,12 +243,54 @@ def render_splash(theme: dict[str, str | int]) -> None:
                            outline=str(theme["accent"]), width=3)
     draw.rectangle((69, 75, 251, 80), fill=str(theme["accent"]))
     draw.text((80, 93), "ForgeOS", font=font(31, True), fill=str(theme["text"]))
-    draw.text((94, 131), "FORGESHELL BETA", font=font(12, True), fill=str(theme["accent"]))
+    draw.text((91, 131), "FORGEOS SYSTEM", font=font(12, True), fill=str(theme["accent"]))
     draw.text((103, 151), f"POWKIDDY Q90  •  {VERSION}", font=font(9), fill=str(theme["muted"]))
-    draw.text((96, 205), "GMenu2X recovery remains available", font=font(9), fill=str(theme["muted"]))
+    draw.text((94, 205), "Recovery: GMenu2X remains available", font=font(9), fill=str(theme["muted"]))
     img.save(ASSETS / "forgeos-splash.png")
     img.save(ASSETS / "forgeos-splash.bmp")
     img.save(ROOT / "overlay/board/miyoo/boot/miyoo-splash.bmp")
+
+    # MiyooCFW's userspace boot-logo program looks for these files on MAIN.
+    # Keep the foreground separate from the background so its existing slide
+    # animation still works while all visible artwork is ForgeOS-branded.
+    bg = Image.new("RGB", (320, 240), str(theme["background"]))
+    bg_draw = ImageDraw.Draw(bg)
+    for x in range(0, 321, 20):
+        bg_draw.line((x, 0, x, 240), fill=str(theme["panel"]), width=1)
+    for y in range(0, 241, 20):
+        bg_draw.line((0, y, 320, y), fill=str(theme["panel"]), width=1)
+    bg_draw.rectangle((0, 226, 320, 239), fill=str(theme["panel"]))
+    bg_draw.text((8, 228), f"ForgeOS {VERSION}  •  Powkiddy Q90",
+                 font=font(8), fill=str(theme["muted"]))
+    bg.save(ROOT / "overlay/board/miyoo/main/logobg.png", optimize=True)
+
+    logo = Image.new("RGBA", (224, 112), (0, 0, 0, 0))
+    logo_draw = ImageDraw.Draw(logo)
+    logo_draw.rounded_rectangle((2, 2, 221, 109), radius=18, fill=str(theme["panel"]),
+                                outline=str(theme["accent"]), width=3)
+    logo_draw.rectangle((22, 20, 201, 25), fill=str(theme["accent"]))
+    logo_draw.text((32, 35), "ForgeOS", font=font(31, True), fill=str(theme["text"]))
+    logo_draw.text((48, 77), "SYSTEM START", font=font(11, True), fill=str(theme["accent"]))
+    logo.save(ROOT / "overlay/board/miyoo/main/logo.png", optimize=True)
+
+    # Short original three-note chime, avoiding the upstream default sound.
+    wav_path = ROOT / "overlay/board/miyoo/main/logo.wav"
+    rate = 22050
+    notes = ((523.25, 0.12), (659.25, 0.12), (783.99, 0.20))
+    samples: list[int] = []
+    for frequency, duration in notes:
+        count = int(rate * duration)
+        for i in range(count):
+            envelope = min(1.0, i / max(1, int(rate * 0.015)))
+            envelope *= min(1.0, (count - i) / max(1, int(rate * 0.04)))
+            value = int(7000 * envelope * math.sin(2.0 * math.pi * frequency * i / rate))
+            samples.append(value)
+        samples.extend([0] * int(rate * 0.025))
+    with wave.open(str(wav_path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        wav.writeframes(b"".join(struct.pack("<h", sample) for sample in samples))
 
 
 def main() -> None:

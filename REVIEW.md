@@ -77,6 +77,39 @@ tooling, GitHub Actions, documentation, generated assets, and update packaging.
 - Source manifests exclude object files, analyzer output, bytecode, ROMs, BIOS
   files, build output, and generated release directories.
 
+## 2026-08-09 quality pass
+
+A second full-repository pass after the first-boot repair found and fixed several
+issues that were not covered by the earlier review:
+
+- The authored Q90 runtime profile had lost its `[labels]` section even though
+  the canonical platform profile and screenshots still contained it. Full-image
+  builds now install the selected target profile directly, and tests require the
+  Q90 runtime copy to be byte-identical to the canonical profile.
+- The shared maintenance `forge_tmpfile` helper leaked `umask 077` into calling
+  scripts. Temporary-file privacy is now scoped to the temporary-file operation
+  and the caller umask is regression-tested.
+- Manual GMenu2X launches were always passed `--boot`, which made a manual launch
+  participate in boot-only recovery/safe-mode behavior. Boot and manual launch
+  semantics are now separate, while successful manual recovery still resets the
+  boot-failure counter.
+- Library drawing no longer performs a full game-list pass for every visible row,
+  and extension matching no longer copies/tokenizes a 512-byte filter for every
+  ROM entry. Both changes reduce avoidable work on the ARM926EJ-S without changing
+  cache formats or limits.
+- Onboarding and empty-state guidance now wraps, the Home footer omits its no-op
+  Back action, and reboot/shutdown confirmation copy matches the selected action.
+- Theme validation now guards WCAG-style contrast for normal, muted, accent,
+  button, and danger text roles. The shipped Midnight Mint palette passes those
+  thresholds, and every maintenance panel is still required to source the common
+  themed dialog helper.
+
+Validation for this pass includes strict C compilation, AddressSanitizer and
+UndefinedBehaviorSanitizer tests, the fake full-image build, overlay migration and
+permission tests, POSIX/dash/BusyBox shell parsing, Python bytecode compilation,
+Clang static analysis across all C core/platform files plus `main.c` and `ui.c`,
+and GCC `-fanalyzer` across all C core/platform files.
+
 ## External validation still required
 
 A GitHub-hosted networked Buildroot run is required to produce and verify the

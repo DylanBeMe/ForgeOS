@@ -20,6 +20,13 @@ rsync -a \
   --exclude='/gmenu2x/sections/ForgeOS/performance-snapshot' \
   --exclude='/gmenu2x/sections/ForgeOS/reset-forgeshell' \
   "$ROOT_DIR/overlay/board/miyoo/main/" "$ROOT_DIR/sd-overlay/MAIN/"
+# Keep archive/install permissions deterministic even when this checkout lives
+# under a setgid or group-writable directory.
+find "$ROOT_DIR/sd-overlay/BOOT" "$ROOT_DIR/sd-overlay/MAIN" -type d \
+  -exec chmod g-s {} + -exec chmod 0755 {} +
+find "$ROOT_DIR/sd-overlay/BOOT" "$ROOT_DIR/sd-overlay/MAIN" -type f -exec chmod 0644 {} +
+find "$ROOT_DIR/sd-overlay/MAIN/apps/forge-tools" -type f -name '*.sh' -exec chmod 0755 {} +
+chmod 0755 "$ROOT_DIR/sd-overlay/BOOT/firstboot.custom.sh"
 cat > "$ROOT_DIR/sd-overlay/MAIN/forgeos-version.txt" <<EOF
 ForgeOS Q90 $VERSION
 Install mode: update-safe SD overlay

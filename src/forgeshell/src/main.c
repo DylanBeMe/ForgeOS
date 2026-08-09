@@ -337,7 +337,7 @@ int main(int argc, char **argv) {
                 strerror(errno));
         fs_theme_defaults(&theme);
     }
-    if (config.safe_mode_next_boot) safe_mode = 1;
+    if (boot_mode && config.safe_mode_next_boot) safe_mode = 1;
     library = (FsLibrary *)calloc(1U, sizeof(*library));
     if (library == NULL) {
         perror("ForgeShell library allocation");

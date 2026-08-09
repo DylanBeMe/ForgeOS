@@ -68,6 +68,11 @@ if (( DRY_RUN )); then
   echo "Dry run: BOOT changes"
   rsync -ani "$ROOT_DIR/sd-overlay/BOOT/" "$BOOT_MOUNT/"
   echo
+  echo "Dry run: ForgeOS runtime branding"
+  for file in logo.png logobg.png logo.wav; do
+    rsync -ani "$ROOT_DIR/sd-overlay/MAIN/$file" "$MAIN_MOUNT/$file"
+  done
+  echo
   echo "Dry run: ForgeOS tools"
   rsync -ani --delete \
     "$ROOT_DIR/sd-overlay/MAIN/apps/forge-tools/" \
@@ -110,12 +115,19 @@ backup_item() {
 }
 
 backup_item "$BOOT_MOUNT/miyoo-splash.bmp" "$BACKUP_DIR/BOOT"
+backup_item "$BOOT_MOUNT/firstboot.custom.sh" "$BACKUP_DIR/BOOT"
+backup_item "$MAIN_MOUNT/logo.png" "$BACKUP_DIR/MAIN"
+backup_item "$MAIN_MOUNT/logobg.png" "$BACKUP_DIR/MAIN"
+backup_item "$MAIN_MOUNT/logo.wav" "$BACKUP_DIR/MAIN"
 backup_item "$MAIN_MOUNT/apps/forge-tools" "$BACKUP_DIR/MAIN/apps"
 backup_item "$MAIN_MOUNT/gmenu2x/sections/ForgeOS" "$BACKUP_DIR/MAIN/gmenu2x/sections"
 backup_item "$MAIN_MOUNT/gmenu2x/sections/forge" "$BACKUP_DIR/MAIN/gmenu2x/sections"
 backup_item "$MAIN_MOUNT/forgeos-version.txt" "$BACKUP_DIR/MAIN"
 
 rsync -a "$ROOT_DIR/sd-overlay/BOOT/" "$BOOT_MOUNT/"
+for file in logo.png logobg.png logo.wav; do
+  install -m 0644 "$ROOT_DIR/sd-overlay/MAIN/$file" "$MAIN_MOUNT/$file"
+done
 mkdir -p "$MAIN_MOUNT/apps/forge-tools" "$MAIN_MOUNT/gmenu2x/sections/ForgeOS"
 rsync -a --delete "$ROOT_DIR/sd-overlay/MAIN/apps/forge-tools/" "$MAIN_MOUNT/apps/forge-tools/"
 rsync -a --delete --filter='protect forgeshell' --filter='protect forgeshell-safe' \
@@ -124,7 +136,9 @@ rsync -a --delete --filter='protect forgeshell' --filter='protect forgeshell-saf
   "$ROOT_DIR/sd-overlay/MAIN/gmenu2x/sections/ForgeOS/" \
   "$MAIN_MOUNT/gmenu2x/sections/ForgeOS/"
 install -m 0644 "$ROOT_DIR/sd-overlay/MAIN/forgeos-version.txt" "$MAIN_MOUNT/forgeos-version.txt"
-chmod 755 "$MAIN_MOUNT"/apps/forge-tools/*.sh 2>/dev/null || true
+chmod g-s "$MAIN_MOUNT/apps/forge-tools" "$MAIN_MOUNT/gmenu2x/sections/ForgeOS" 2>/dev/null || true
+chmod 0755 "$MAIN_MOUNT/apps/forge-tools" "$MAIN_MOUNT/gmenu2x/sections/ForgeOS"
+chmod 0755 "$MAIN_MOUNT"/apps/forge-tools/*.sh 2>/dev/null || true
 
 # Remove only the legacy 0.1.0 section after its contents have been backed up.
 if [[ -f "$BACKUP_DIR/MAIN/forgeos-version.txt" ]] && \

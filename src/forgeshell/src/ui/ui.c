@@ -374,6 +374,57 @@ static void ui_text_fit(FsUi *ui, TTF_Font *font, const char *text,
     }
 }
 
+static int ui_text_fits(TTF_Font *font, const char *text, int max_width) {
+    int width = 0;
+    int height = 0;
+    return font != NULL && text != NULL &&
+           TTF_SizeUTF8(font, text, &width, &height) == 0 && width <= max_width;
+}
+
+static void ui_text_wrap(FsUi *ui, TTF_Font *font, const char *text,
+                         int x, int y, int max_width, int line_height,
+                         int max_lines, uint32_t color) {
+    char source[FS_MAX_VALUE];
+    char line[FS_MAX_VALUE];
+    char candidate[FS_MAX_VALUE];
+    char remainder[FS_MAX_VALUE];
+    char *save = NULL;
+    char *word;
+    int drawn = 0;
+    if (font == NULL || text == NULL || max_lines <= 0 ||
+        fs_copy(source, sizeof(source), text) != 0) return;
+    line[0] = '\0';
+    for (word = strtok_r(source, " ", &save); word != NULL;
+         word = strtok_r(NULL, " ", &save)) {
+        int written = snprintf(candidate, sizeof(candidate), "%s%s%s",
+                               line, line[0] == '\0' ? "" : " ", word);
+        if (written < 0 || (size_t)written >= sizeof(candidate)) {
+            ui_text_fit(ui, font, line[0] == '\0' ? word : line,
+                        x, y + drawn * line_height, max_width, color);
+            return;
+        }
+        if (line[0] == '\0' || ui_text_fits(font, candidate, max_width)) {
+            (void)fs_copy(line, sizeof(line), candidate);
+            continue;
+        }
+        ui_text_fit(ui, font, line, x, y + drawn * line_height, max_width, color);
+        drawn++;
+        if (drawn >= max_lines - 1) {
+            written = snprintf(remainder, sizeof(remainder), "%s%s%s",
+                               word, save != NULL && save[0] != '\0' ? " " : "",
+                               save == NULL ? "" : save);
+            ui_text_fit(ui, font,
+                        written >= 0 && (size_t)written < sizeof(remainder) ? remainder : word,
+                        x, y + drawn * line_height, max_width, color);
+            return;
+        }
+        (void)fs_copy(line, sizeof(line), word);
+    }
+    if (line[0] != '\0' && drawn < max_lines) {
+        ui_text_fit(ui, font, line, x, y + drawn * line_height, max_width, color);
+    }
+}
+
 static void ui_draw_header(FsUi *ui, const char *subtitle) {
     char clock_text[16];
     time_t now = time(NULL);
@@ -431,9 +482,10 @@ static void ui_draw_footer(FsUi *ui, const char *primary, const char *secondary,
     ui_fill(ui, 0, 205, FS_LOGICAL_W, 35, ui->theme.background);
     x += ui_button(ui, x, 213, ui_action_label(ui, FS_ACTION_ACCEPT),
                    primary == NULL ? "Open" : primary) + 8;
-    x += ui_button(ui, x, 213, ui_action_label(ui, FS_ACTION_BACK),
-                   secondary == NULL ? "Back" : secondary) + 8;
-    if (tertiary != NULL) {
+    if (secondary != NULL && secondary[0] != '\0') {
+        x += ui_button(ui, x, 213, ui_action_label(ui, FS_ACTION_BACK), secondary) + 8;
+    }
+    if (tertiary != NULL && tertiary[0] != '\0') {
         x += ui_button(ui, x, 213, ui_action_label(ui, FS_ACTION_FAVORITE), tertiary) + 8;
     }
     if (!ui->game_options_active && !ui->onboarding_active && !ui->modal_active) {
@@ -465,8 +517,8 @@ static void ui_list_row(FsUi *ui, int row, int selected, const char *title,
 }
 
 static void ui_empty(FsUi *ui, const char *title, const char *detail) {
-    ui_draw_text(ui, ui->font_body, title, 22, 84, ui->theme.text);
-    ui_text_fit(ui, ui->font_small, detail, 22, 110, 276, ui->theme.muted);
+    ui_text_fit(ui, ui->font_body, title, 22, 84, 276, ui->theme.text);
+    ui_text_wrap(ui, ui->font_small, detail, 22, 110, 276, 14, 2, ui->theme.muted);
 }
 
 static void ui_toast(FsUi *ui, const char *message) {
@@ -500,8 +552,11 @@ static void ui_draw_modal(FsUi *ui) {
     ui_fill(ui, 0, 0, FS_LOGICAL_W, FS_LOGICAL_H, ui->theme.background);
     ui_panel(ui, 35, 72, 250, 94, ui->theme.panel, ui->theme.danger);
     ui_draw_text(ui, ui->font_title, action, 55, 88, ui->theme.text);
-    ui_draw_text(ui, ui->font_small, "Changes are flushed before power-off.", 55, 121,
-                 ui->theme.muted);
+    ui_draw_text(ui, ui->font_small,
+                 ui->modal_action == FS_EXIT_POWEROFF ?
+                 "Changes are flushed before shutdown." :
+                 "Changes are flushed before restart.",
+                 55, 121, ui->theme.muted);
     (void)ui_button(ui, 69, 143, ui_action_label(ui, FS_ACTION_ACCEPT), "Confirm");
     (void)ui_button(ui, 181, 143, ui_action_label(ui, FS_ACTION_BACK), "Cancel");
 }
@@ -539,6 +594,20 @@ static ssize_t ui_filtered_game_at(FsUi *ui, size_t position) {
         }
     }
     return -1;
+}
+
+static void ui_filtered_game_window(FsUi *ui, size_t first,
+                                    ssize_t *indices, size_t capacity) {
+    size_t i;
+    size_t seen = 0U;
+    size_t filled = 0U;
+    if (indices == NULL || capacity == 0U) return;
+    for (i = 0U; i < capacity; i++) indices[i] = -1;
+    for (i = 0U; i < ui->library->game_count && filled < capacity; i++) {
+        if (!ui_game_matches_filter(ui, &ui->library->games[i])) continue;
+        if (seen >= first) indices[filled++] = (ssize_t)i;
+        seen++;
+    }
 }
 
 static ssize_t ui_home_game_at(FsUi *ui, int selection) {
@@ -587,7 +656,7 @@ static void ui_draw_home(FsUi *ui) {
                     (ui->library->cache_load_failed ? "Library cache needs a rescan" :
                      "Library cache is ready"))));
     ui_text_fit(ui, ui->font_small, scan_status, 20, 174, 280, ui->theme.muted);
-    ui_draw_footer(ui, "Open", "Home", NULL);
+    ui_draw_footer(ui, "Open", "", NULL);
 }
 
 static void ui_draw_library(FsUi *ui) {
@@ -597,8 +666,16 @@ static void ui_draw_library(FsUi *ui) {
     int row;
     char meta[64];
     if (ui->library_view == LIBRARY_SYSTEMS) {
+        size_t system_counts[FS_MAX_SYSTEMS] = {0U};
+        size_t i;
         ui_draw_header(ui, "Choose a system");
         total = ui->library->system_count + 1U;
+        for (i = 0U; i < ui->library->game_count; i++) {
+            int system_index = ui->library->games[i].system_index;
+            if (system_index >= 0 && (size_t)system_index < ui->library->system_count) {
+                system_counts[system_index]++;
+            }
+        }
         if (total == 1U) {
             ui_empty(ui, "No emulator systems found", "Check the configured launcher provider or systems manifest.");
         } else {
@@ -609,12 +686,7 @@ static void ui_draw_library(FsUi *ui) {
                     ui_list_row(ui, row, selection == 0, "All games", meta, 0);
                 } else {
                     size_t index = (size_t)(first + row - 1);
-                    size_t i;
-                    size_t count = 0U;
-                    for (i = 0U; i < ui->library->game_count; i++) {
-                        if (ui->library->games[i].system_index == (int)index) count++;
-                    }
-                    (void)snprintf(meta, sizeof(meta), "%u", (unsigned)count);
+                    (void)snprintf(meta, sizeof(meta), "%u", (unsigned)system_counts[index]);
                     ui_list_row(ui, row, selection == first + row,
                                 ui->library->systems[index].title, meta, 0);
                 }
@@ -635,10 +707,12 @@ static void ui_draw_library(FsUi *ui) {
                       "Use the Favorite action on a game to add it here." :
                       "Check the ROM folder configured by the launcher provider."));
         } else {
+            ssize_t visible[5];
             if ((size_t)selection >= total) selection = (int)total - 1;
             first = selection > 3 ? selection - 3 : 0;
+            ui_filtered_game_window(ui, (size_t)first, visible, 5U);
             for (row = 0; row < 5 && (size_t)(first + row) < total; row++) {
-                ssize_t game_index = ui_filtered_game_at(ui, (size_t)(first + row));
+                ssize_t game_index = visible[row];
                 if (game_index >= 0) {
                     FsGame *game = &ui->library->games[game_index];
                     FsSystem *system = &ui->library->systems[game->system_index];
@@ -834,18 +908,18 @@ static void ui_draw_onboarding(FsUi *ui) {
                                ui->platform->device_name);
                 ui_text_fit(ui, ui->font_body, device_line, 24, 58, 270, ui->theme.accent);
             }
-            ui_text_fit(ui, ui->font_small,
-                        "ForgeShell keeps the proven hardware layer while replacing the visible launcher and settings experience.",
-                        24, 86, 270, ui->theme.text);
-            ui_text_fit(ui, ui->font_small,
-                        "The original system launcher stays available as a recovery path.",
-                        24, 130, 270, ui->theme.muted);
+            ui_text_wrap(ui, ui->font_small,
+                         "ForgeShell keeps the proven hardware layer while replacing the visible launcher and settings experience.",
+                         24, 86, 270, 14, 3, ui->theme.text);
+            ui_text_wrap(ui, ui->font_small,
+                         "The original system launcher stays available as a recovery path.",
+                         24, 132, 270, 14, 2, ui->theme.muted);
             break;
         case 1:
             ui_draw_text(ui, ui->font_body, "Build your library", 24, 58, ui->theme.accent);
-            ui_text_fit(ui, ui->font_small,
-                        "ForgeShell reads this device's emulator provider and scans its configured ROM folders.",
-                        24, 86, 270, ui->theme.text);
+            ui_text_wrap(ui, ui->font_small,
+                         "ForgeShell reads this device's emulator provider and scans its configured ROM folders.",
+                         24, 86, 270, 14, 3, ui->theme.text);
             ui_text_fit(ui, ui->font_small,
                         ui->library->scan_active ? "Scanning is running in the background." :
                         "Use Next to start a bounded scan now.",
@@ -858,11 +932,11 @@ static void ui_draw_onboarding(FsUi *ui) {
                 (void)snprintf(recovery, sizeof(recovery),
                                "%s opens recovery. The boot adapter can also recover after repeated startup failures.",
                                ui_action_label(ui, FS_ACTION_SELECT));
-                ui_text_fit(ui, ui->font_small, recovery, 24, 86, 270, ui->theme.text);
+                ui_text_wrap(ui, ui->font_small, recovery, 24, 86, 270, 14, 3, ui->theme.text);
             }
-            ui_text_fit(ui, ui->font_small,
-                        "Safe mode disables scans, metadata and per-game overrides.",
-                        24, 136, 270, ui->theme.muted);
+            ui_text_wrap(ui, ui->font_small,
+                         "Safe mode disables scans, metadata and per-game overrides.",
+                         24, 136, 270, 14, 2, ui->theme.muted);
             break;
         case 3:
             ui_draw_text(ui, ui->font_body, "Choose the boot launcher", 24, 58, ui->theme.accent);
@@ -875,9 +949,9 @@ static void ui_draw_onboarding(FsUi *ui) {
             break;
         default:
             ui_draw_text(ui, ui->font_body, "Protect your progress", 24, 58, ui->theme.accent);
-            ui_text_fit(ui, ui->font_small,
-                        "Run Save Backup now, or finish setup and create one later from Maintenance.",
-                        24, 86, 270, ui->theme.text);
+            ui_text_wrap(ui, ui->font_small,
+                         "Run Save Backup now, or finish setup and create one later from Maintenance.",
+                         24, 86, 270, 14, 3, ui->theme.text);
             ui_text_fit(ui, ui->font_small,
                         "Choose Backup, or use Finish to continue.", 24, 138, 270, ui->theme.muted);
             break;

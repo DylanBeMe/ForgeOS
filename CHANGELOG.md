@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Boot branding now uses ForgeOS artwork at both the early framebuffer splash and the runtime boot-logo stage, with a short ForgeOS startup chime.
+- ForgeShell startup normalizes its writable state directory to mode 0755 and reports a targeted recovery error if the directory cannot be written. Build and overlay paths also normalize ForgeOS-owned directories/scripts so host umasks or setgid extraction do not leak into the firmware.
+- The Q90 runtime profile is now installed directly from the canonical platform profile so displayed controls, capabilities, and build-time previews cannot drift apart.
+- Long onboarding and empty-state guidance wraps across readable lines instead of silently truncating, and the Home footer no longer advertises a no-op Back action.
+- Theme validation now enforces minimum text/accent contrast ratios in addition to palette/schema consistency.
+- Library redraws precompute per-system counts and visible filtered rows, and ROM extension matching no longer copies/tokenizes the complete filter for every candidate file.
+
+### Fixed
+
+- First boot repairs an image-sized backup GPT before MiyooCFW expands the ROMS partition, preventing the resize failure that left `/roms` unavailable after flashing to a larger SD card.
+- Full-image builds and update-safe overlay installs now include the runtime `logo.png`, `logobg.png`, and `logo.wav` assets; overlay installs back up existing branding first.
+- Shared maintenance helpers no longer leave the caller at `umask 077` after creating a private temporary file, preventing unrelated later files from becoming unexpectedly owner-only.
+- Manual ForgeShell launches no longer masquerade as system boots or consume next-boot safe-mode semantics, while a successful manual recovery launch can still clear the startup-failure counter.
+- One-shot safe-mode config rewriting now removes duplicate stale keys and writes the replacement with deterministic permissions.
+- Restart confirmation text now says restart rather than power-off.
+
 ## 0.6.3 — 2026-08-06
 
 ### Changed

@@ -22,9 +22,8 @@ forge_has_dialog() {
 }
 
 forge_tmpfile() {
-  umask 077
   if command -v mktemp >/dev/null 2>&1; then
-    mktemp "$FORGE_TMPDIR/forgeos.XXXXXX"
+    (umask 077; mktemp "$FORGE_TMPDIR/forgeos.XXXXXX")
     return $?
   fi
 

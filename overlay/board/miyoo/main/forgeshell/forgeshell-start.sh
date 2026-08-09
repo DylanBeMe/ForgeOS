@@ -1,5 +1,6 @@
 #!/bin/sh
 set -u
+umask 022
 
 HOME_DIR=${FORGESHELL_HOME:-/mnt/forgeshell}
 BIN=${FORGESHELL_BIN:-/usr/bin/forgeshell}
@@ -19,7 +20,10 @@ for arg in "$@"; do
         --safe-mode) SAFE_MODE=1 ;;
     esac
 done
-mkdir -p "$STATE_DIR" || exit 42
+if ! mkdir -p "$STATE_DIR" 2>/dev/null || ! chmod 0755 "$STATE_DIR" 2>/dev/null || [ ! -w "$STATE_DIR" ]; then
+    printf 'ForgeShell recovery: state directory is not writable: %s\n' "$STATE_DIR" >&2
+    exit 42
+fi
 
 read_failures() {
     value=0
@@ -46,11 +50,30 @@ write_failures() {
 }
 
 run_forgeshell() {
-    rm -f "$BOOT_OK" "$BOOT_WATCH_STOP" "$BOOT_RESET_DONE"
     export FRONTEND=forgeshell
+    if [ "$SAFE_MODE" -eq 1 ]; then
+        export FORGESHELL_SAFE_MODE=1
+    else
+        unset FORGESHELL_SAFE_MODE 2>/dev/null || true
+    fi
+
+    # A manual launch from GMenu2X is not a system boot. Keep the recovery
+    # handshake and queued "safe mode next boot" semantics reserved for boot.
+    if [ "$BOOT_MODE" -eq 0 ]; then
+        unset FORGESHELL_BOOT FORGESHELL_BOOT_OK 2>/dev/null || true
+        set --
+        [ "$SAFE_MODE" -eq 1 ] && set -- --safe-mode
+        "$BIN" "$@"
+        status=$?
+        if [ "$status" -eq 0 ] && ! write_failures 0; then
+            printf 'ForgeShell warning: could not reset the startup-failure counter\n' >&2
+        fi
+        return "$status"
+    fi
+
+    rm -f "$BOOT_OK" "$BOOT_WATCH_STOP" "$BOOT_RESET_DONE"
     export FORGESHELL_BOOT=1
     export FORGESHELL_BOOT_OK="$BOOT_OK"
-    if [ "$SAFE_MODE" -eq 1 ]; then export FORGESHELL_SAFE_MODE=1; else unset FORGESHELL_SAFE_MODE 2>/dev/null || true; fi
     (
         while [ ! -f "$BOOT_WATCH_STOP" ]; do
             if [ -f "$BOOT_OK" ]; then
