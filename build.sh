@@ -210,10 +210,68 @@ for file in console.cfg options.cfg miyoo-splash.bmp; do
   install -m 0644 "$overlay_dir/boot/$file" "$board_dir/boot/$file"
 done
 install -m 0755 "$overlay_dir/boot/firstboot.custom.sh" "$board_dir/boot/firstboot.custom.sh"
+# The upstream post-image script regenerates miyoo-splash.bmp and otherwise
+# overwrites our authored BOOT splash. Feed it the ForgeOS source image instead.
+install -m 0644 "$ROOT_DIR/assets/forgeos-splash.png" "$board_dir/miyoo-splash.png"
+
+# Keep user-facing first-boot UI branded as ForgeOS while preserving technical
+# hardware identifiers and package paths that are part of the upstream ABI.
+firstboot_script="$board_dir/boot/firstboot"
+[[ -f "$firstboot_script" ]] || fail "upstream firstboot script is missing"
+python3 - "$firstboot_script" <<'PY_FIRSTBOOT'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+changed = text.replace('MiyooCFW 2.0', 'ForgeOS Setup')
+changed = changed.replace(r'\ZbMiyooCFW\Zn', r'\ZbForgeOS\Zn')
+if changed == text:
+    raise SystemExit('could not locate upstream first-boot branding anchors')
+path.write_text(changed)
+PY_FIRSTBOOT
+
+# Upstream genimage copies board/miyoo/boot and then recreates the splash with
+# a MiyooCFW version annotation. Explicitly install our hook into the staging
+# BOOT tree and overwrite that generated splash with an unannotated ForgeOS BMP.
+genimage_script="$WORKDIR/board/miyoo/scripts/genimage.sh"
+[[ -f "$genimage_script" ]] || fail "upstream genimage script is missing"
+python3 - "$genimage_script" <<'PY_GENIMAGE'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+copy_anchor = 'cp -r board/miyoo/boot "${BINARIES_DIR}"'
+if copy_anchor not in text:
+    raise SystemExit('could not locate upstream BOOT staging copy')
+if 'ForgeOS: guarantee custom firstboot hook' not in text:
+    text = text.replace(
+        copy_anchor,
+        copy_anchor + '\n# ForgeOS: guarantee custom firstboot hook reaches the FAT image\n'
+        'install -m 0755 board/miyoo/boot/firstboot.custom.sh "${BINARIES_DIR}/boot/firstboot.custom.sh"',
+        1,
+    )
+splash_anchor = 'BMP3:"${BINARIES_DIR}"/boot/miyoo-splash.bmp'
+pos = text.find(splash_anchor)
+if pos < 0:
+    raise SystemExit('could not locate upstream generated splash command')
+line_end = text.find('\n', pos)
+if line_end < 0:
+    line_end = len(text)
+marker = '# ForgeOS: overwrite version-stamped splash with unannotated artwork'
+if marker not in text:
+    command = (
+        '\n' + marker + '\n'
+        'convert board/miyoo/miyoo-splash.png -type Palette -colors 224 -depth 8 '
+        '-compress none -verbose BMP3:"${BINARIES_DIR}"/boot/miyoo-splash.bmp'
+    )
+    text = text[:line_end] + command + text[line_end:]
+path.write_text(text)
+PY_GENIMAGE
+
 for file in .backlight.conf .volume.conf logo.png logobg.png logo.wav; do
   install -m 0644 "$overlay_dir/main/$file" "$board_dir/main/$file"
 done
-printf 'ForgeOS %s %s\nTarget: %s\nUpstream: MiyooCFW Buildroot %s\nEmulator manifest: /mnt/forgeos-emulators.txt\n' \
+printf 'ForgeOS %s %s\nTarget: %s\nUpstream Buildroot revision: %s\nEmulator manifest: /mnt/forgeos-emulators.txt\n' \
   "$FORGE_DEVICE_NAME" "$VERSION" "$FORGE_DEVICE_ID" "$resolved_ref" > "$board_dir/main/forgeos-version.txt"
 install -m 0644 "$manifest_tmp" "$board_dir/main/forgeos-emulators.txt"
 
@@ -221,6 +279,16 @@ pushd "$WORKDIR" >/dev/null
 make BR2_DL_DIR="$DOWNLOAD_DIR" "$FORGE_DEFCONFIG_TARGET"
 make BR2_DL_DIR="$DOWNLOAD_DIR" -j "$JOBS"
 popd >/dev/null
+
+# Refuse to ship an image if the exact first-boot repair hook that prevents the
+# stale-backup-GPT failure was dropped by upstream post-image staging.
+generated_boot="$WORKDIR/output/images/boot"
+[[ -x "$generated_boot/firstboot.custom.sh" ]] || \
+  fail "generated BOOT image is missing firstboot.custom.sh"
+[[ -f "$generated_boot/firstboot" ]] || fail "generated BOOT image is missing firstboot"
+if grep -q 'MiyooCFW' "$generated_boot/firstboot"; then
+  fail "generated firstboot still contains user-facing MiyooCFW branding"
+fi
 
 mapfile -t images < <(compgen -G "$WORKDIR/$FORGE_IMAGE_GLOB" || true)
 (( ${#images[@]} == 1 )) || fail "expected exactly one target image, found ${#images[@]}"

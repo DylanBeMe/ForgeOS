@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <time.h>
 
-#define FS_VERSION "0.6.3-beta"
+#define FS_VERSION "0.6.4-beta"
 #define FS_LOGICAL_W 320
 #define FS_LOGICAL_H 240
 #define FS_MAX_TOOLS 24

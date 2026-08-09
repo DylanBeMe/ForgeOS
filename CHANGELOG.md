@@ -2,9 +2,13 @@
 
 ## Unreleased
 
+## 0.6.4 — 2026-08-09
+
 ### Changed
 
 - Boot branding now uses ForgeOS artwork at both the early framebuffer splash and the runtime boot-logo stage, with a short ForgeOS startup chime.
+- Full-image generation replaces the upstream version-stamped splash with the unannotated ForgeOS splash and rewrites user-facing first-boot MiyooCFW labels as ForgeOS Setup.
+- Full-image builds validate that the generated BOOT tree still contains the ForgeOS first-boot repair hook and no user-facing MiyooCFW first-boot branding.
 - ForgeShell startup normalizes its writable state directory to mode 0755 and reports a targeted recovery error if the directory cannot be written. Build and overlay paths also normalize ForgeOS-owned directories/scripts so host umasks or setgid extraction do not leak into the firmware.
 - The Q90 runtime profile is now installed directly from the canonical platform profile so displayed controls, capabilities, and build-time previews cannot drift apart.
 - Long onboarding and empty-state guidance wraps across readable lines instead of silently truncating, and the Home footer no longer advertises a no-op Back action.
@@ -13,7 +17,9 @@
 
 ### Fixed
 
-- First boot repairs an image-sized backup GPT before MiyooCFW expands the ROMS partition, preventing the resize failure that left `/roms` unavailable after flashing to a larger SD card.
+- First boot repairs an image-sized backup GPT with `sgdisk -e` before the ROMS expansion step, with a `parted` fallback for compatible environments, preventing partition 5 from disappearing when an image is flashed to a larger SD card.
+- The generated BOOT staging tree explicitly receives `firstboot.custom.sh`, preventing upstream image-generation steps from silently dropping the GPT repair hook.
+- `autoexec.sh` no longer uses `exec` while sourced by the platform `/etc/main`; frontend exits now return to the supervising boot script instead of replaying the intro in a respawn loop.
 - Full-image builds and update-safe overlay installs now include the runtime `logo.png`, `logobg.png`, and `logo.wav` assets; overlay installs back up existing branding first.
 - Shared maintenance helpers no longer leave the caller at `umask 077` after creating a private temporary file, preventing unrelated later files from becoming unexpectedly owner-only.
 - Manual ForgeShell launches no longer masquerade as system boots or consume next-boot safe-mode semantics, while a successful manual recovery launch can still clear the startup-failure counter.

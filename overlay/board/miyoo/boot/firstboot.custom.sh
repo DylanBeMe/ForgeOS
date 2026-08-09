@@ -17,13 +17,27 @@ repair_gpt() {
         log "disk $DISK is not available; skipping GPT repair"
         return 0
     }
+    # The upstream first-boot script already ships sgdisk. Its -e operation is
+    # purpose-built for relocating the backup GPT to the real end of a larger
+    # card and, unlike interactive parted prompts, is deterministic here.
+    if command -v sgdisk >/dev/null 2>&1; then
+        if sgdisk -e "$DISK" >/dev/null 2>&1; then
+            if command -v partprobe >/dev/null 2>&1; then
+                partprobe "$DISK" >/dev/null 2>&1 || true
+            fi
+            log "GPT backup header checked/repaired with sgdisk"
+            return 0
+        fi
+        log "sgdisk GPT repair failed; trying parted fallback"
+    fi
+
     command -v parted >/dev/null 2>&1 || {
-        log "parted is unavailable; skipping GPT repair"
+        log "warning: neither sgdisk nor parted could repair GPT metadata"
         return 0
     }
 
     # Newer GNU Parted has --fix specifically for moving a stale backup GPT
-    # header to the real end of the disk in script mode. Older MiyooCFW builds
+    # header to the real end of the disk in script mode. Older platform builds
     # do not expose --fix, so answer the two standard GPT repair exceptions on
     # stdin instead. Both paths are harmless when the GPT is already correct.
     if parted --help 2>&1 | grep -q -- '--fix'; then

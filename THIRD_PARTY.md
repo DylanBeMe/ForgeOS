@@ -17,7 +17,7 @@ not relicense them.
 ForgeShell is ForgeOS-authored and licensed under MIT; its license is stored in
 `src/forgeshell/src/LICENSE`.
 
-A successful full build creates `forgeos-q90-0.6.3.img.emulators.txt`, recording
+A successful full build creates `forgeos-q90-0.6.4.img.emulators.txt`, recording
 each selected emulator package's source revision and package definition. The
 same report is installed as `/mnt/forgeos-emulators.txt` in the image.
 

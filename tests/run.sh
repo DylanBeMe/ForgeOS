@@ -24,6 +24,20 @@ for script in overlay/board/miyoo/boot/firstboot.custom.sh \
   dash -n "$script"
   busybox ash -n "$script"
 done
+
+# autoexec.sh is sourced by /etc/main: a frontend exit must return to that
+# caller rather than replacing it with exec and retriggering the intro path.
+mkdir -p "$tmp/autoexec-main/forgeshell"
+cat > "$tmp/autoexec-main/forgeshell/boot-dispatch.sh" <<'SH'
+#!/bin/sh
+printf 'dispatcher-ran\n'
+exit 7
+SH
+chmod 755 "$tmp/autoexec-main/forgeshell/boot-dispatch.sh"
+autoexec_output=$(FORGE_MAIN_ROOT="$tmp/autoexec-main" sh -c   '. "$1"; rc=$?; printf "caller-resumed:%s\n" "$rc"' sh   "$ROOT_DIR/overlay/board/miyoo/main/autoexec.sh")
+grep -q '^dispatcher-ran$' <<<"$autoexec_output"
+grep -q '^caller-resumed:7$' <<<"$autoexec_output" ||   fail "autoexec replaced its sourcing shell instead of returning to /etc/main"
+
 dialog_theme=$(FORGE_TOOL_DIR="$ROOT_DIR/overlay/board/miyoo/main/apps/forge-tools" \
   sh -c '. "$1/common.sh"; printf "%s" "${DIALOGRC:-}"' sh \
   "$ROOT_DIR/overlay/board/miyoo/main/apps/forge-tools")
@@ -93,11 +107,26 @@ grep -q '^Emulator binaries: unchanged' sd-overlay/MAIN/forgeos-version.txt
 mkdir -p \
   "$tmp/fake-upstream/board/miyoo/boot" \
   "$tmp/fake-upstream/board/miyoo/main" \
+  "$tmp/fake-upstream/board/miyoo/scripts" \
   "$tmp/fake-upstream/configs" \
   "$tmp/fake-upstream/package/miyoo/retroarch/libretro-retroarch" \
   "$tmp/fake-upstream/package/miyoo/retroarch/libretro-gpsp" \
   "$tmp/fake-upstream/package/miyoo/retroarch/libretro-picodrive" \
   "$tmp/fake-upstream/package/miyoo/ipk/gpsp"
+cat > "$tmp/fake-upstream/board/miyoo/boot/firstboot" <<'SH'
+#!/bin/sh
+dialog --backtitle "MiyooCFW 2.0" --msgbox "\ZbMiyooCFW\Zn" 0 0
+SH
+chmod 755 "$tmp/fake-upstream/board/miyoo/boot/firstboot"
+cat > "$tmp/fake-upstream/board/miyoo/scripts/genimage.sh" <<'SH'
+#!/bin/sh
+cp -r board/miyoo/boot "${BINARIES_DIR}"
+convert board/miyoo/miyoo-splash.png -pointsize 12 -fill white \
+ -annotate +10+230 "v${CFW_RELEASE} ${CFW_VERSION}" \
+ -type Palette -colors 224 -depth 8 -compress none -verbose BMP3:"${BINARIES_DIR}"/boot/miyoo-splash.bmp
+SH
+chmod 755 "$tmp/fake-upstream/board/miyoo/scripts/genimage.sh"
+printf 'upstream splash placeholder\n' > "$tmp/fake-upstream/board/miyoo/miyoo-splash.png"
 cat > "$tmp/fake-upstream/configs/miyoo_uclibc_defconfig" <<'CFG'
 BR2_PACKAGE_RETROARCH=y
 BR2_PACKAGE_LIBRETRO_ASSETS=y
@@ -130,7 +159,8 @@ cat > "$tmp/fake-upstream/Makefile" <<'MK'
 .DEFAULT_GOAL := all
 .PHONY: all miyoo_uclibc_defconfig
 all:
-	@mkdir -p output/images
+	@mkdir -p output/images/boot
+	@cp -a board/miyoo/boot/. output/images/boot/
 	@printf 'fake-image\n' > output/images/miyoo-br2_dist-test.img
 miyoo_uclibc_defconfig:
 	@:
@@ -175,6 +205,14 @@ grep -q '^BR2_PACKAGE_FORGESHELL=y$' "$tmp/build-work/configs/miyoo_uclibc_defco
 [[ -x "$tmp/build-work/board/miyoo/main/autoexec.sh" ]]
 [[ -x "$tmp/build-work/board/miyoo/main/forgeshell/forgeshell-start.sh" ]]
 [[ -x "$tmp/build-work/board/miyoo/boot/firstboot.custom.sh" ]]
+[[ -x "$tmp/build-work/output/images/boot/firstboot.custom.sh" ]]
+grep -q 'ForgeOS Setup' "$tmp/build-work/output/images/boot/firstboot"
+if grep -q 'MiyooCFW' "$tmp/build-work/output/images/boot/firstboot"; then
+  fail "image builder left MiyooCFW branding in firstboot"
+fi
+cmp -s assets/forgeos-splash.png "$tmp/build-work/board/miyoo/miyoo-splash.png" ||   fail "image builder did not replace the upstream splash source"
+grep -q 'ForgeOS: guarantee custom firstboot hook'   "$tmp/build-work/board/miyoo/scripts/genimage.sh"
+grep -q 'ForgeOS: overwrite version-stamped splash with unannotated artwork'   "$tmp/build-work/board/miyoo/scripts/genimage.sh"
 [[ -f "$tmp/build-work/board/miyoo/main/logo.png" ]]
 [[ -f "$tmp/build-work/board/miyoo/main/logobg.png" ]]
 [[ -f "$tmp/build-work/board/miyoo/main/logo.wav" ]]
