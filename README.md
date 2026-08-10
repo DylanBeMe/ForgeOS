@@ -118,6 +118,6 @@ See [`docs/RELEASING.md`](docs/RELEASING.md) and [`docs/GITHUB-SETUP.md`](docs/G
 
 ForgeOS contains no commercial ROMs or proprietary BIOS files. Third-party
 components retain their upstream licenses; see [THIRD_PARTY.md](THIRD_PARTY.md).
-ForgeOS-authored code is MIT licensed. Security issues should follow
+ForgeOS-authored code is AGPLv3 licensed. Security issues should follow
 [SECURITY.md](SECURITY.md); general support belongs in GitHub Discussions or an
 issue created from the supplied templates.
