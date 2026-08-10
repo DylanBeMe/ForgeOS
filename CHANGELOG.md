@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fixed
+
+- Full images now add the live `firstboot.custom.sh` hook to the BOOT FAT manifest instead of only the staging directory, so GPT repair actually runs before ROMS expansion.
+- Incomplete first-run setup now boots into ForgeShell onboarding even while GMenu2X remains the saved default launcher.
+- ROM storage detection no longer mistakes `/mnt/roms -> /roms` for a MAIN-local directory when the ROMS partition is missing.
+
 ## 0.6.4 — 2026-08-09
 
 ### Changed

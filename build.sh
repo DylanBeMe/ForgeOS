@@ -268,6 +268,30 @@ if marker not in text:
 path.write_text(text)
 PY_GENIMAGE
 
+# The upstream FAT manifest only includes firstboot.custom.sh-OFF. Add the live
+# hook explicitly; copying it into output/images/boot is not enough because
+# genimage only packs files named in genimage-sdcard.cfg.
+genimage_cfg="$WORKDIR/board/miyoo/genimage-sdcard.cfg"
+[[ -f "$genimage_cfg" ]] || fail "upstream genimage-sdcard.cfg is missing"
+python3 - "$genimage_cfg" <<'PY_BOOTFS'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+live_name = '"boot/firstboot.custom.sh",'
+if live_name not in text:
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if '"boot/firstboot.custom.sh-OFF",' in line:
+            indent = line[:len(line) - len(line.lstrip())]
+            lines.insert(index, indent + live_name)
+            text = '\n'.join(lines) + ('\n' if text.endswith('\n') else '')
+            break
+    else:
+        raise SystemExit('could not locate firstboot custom-script FAT manifest anchor')
+path.write_text(text)
+PY_BOOTFS
+
 for file in .backlight.conf .volume.conf logo.png logobg.png logo.wav; do
   install -m 0644 "$overlay_dir/main/$file" "$board_dir/main/$file"
 done
@@ -286,6 +310,8 @@ generated_boot="$WORKDIR/output/images/boot"
 [[ -x "$generated_boot/firstboot.custom.sh" ]] || \
   fail "generated BOOT image is missing firstboot.custom.sh"
 [[ -f "$generated_boot/firstboot" ]] || fail "generated BOOT image is missing firstboot"
+grep -Fq '"boot/firstboot.custom.sh",' "$genimage_cfg" || \
+  fail "generated BOOT FAT manifest omits firstboot.custom.sh"
 if grep -q 'MiyooCFW' "$generated_boot/firstboot"; then
   fail "generated firstboot still contains user-facing MiyooCFW branding"
 fi

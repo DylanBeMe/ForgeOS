@@ -18,6 +18,12 @@ config_value() {
 
 configured=$(config_value launcher_mode)
 case $configured in forgeshell|gmenu2x) MODE=$configured ;; esac
+# First-run setup belongs to ForgeShell even when GMenu2X is the default saved
+# launcher. Without this override onboarding can never be shown automatically.
+case $(config_value onboarding_complete) in
+    1|yes|true|on) ;;
+    *) MODE=forgeshell ;;
+esac
 case $(config_value safe_mode_next_boot) in
     1|yes|true|on)
         SAFE_MODE=1

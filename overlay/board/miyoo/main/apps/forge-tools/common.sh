@@ -169,6 +169,19 @@ forge_rom_mount() {
   for forge_path in $forge_rom_candidates; do
     [ -d "$forge_path" ] || continue
     [ -w "$forge_path" ] || continue
+
+    # Upstream creates /mnt/roms as a symlink to /roms. Do not treat that link
+    # as a MAIN-local directory merely because its spelling starts with /mnt;
+    # when the ROMS partition is absent it resolves into the read-only rootfs.
+    if [ -L "$forge_path" ]; then
+      forge_target=$(readlink -f "$forge_path" 2>/dev/null || true)
+      if [ -n "$forge_target" ] && { [ "${FORGE_ALLOW_UNMOUNTED:-0}" = 1 ] || forge_is_mountpoint "$forge_target"; }; then
+        printf '%s\n' "$forge_path"
+        return 0
+      fi
+      continue
+    fi
+
     case "$forge_path/" in
       "$forge_main"/*) printf '%s\n' "$forge_path"; return 0 ;;
     esac
@@ -178,6 +191,9 @@ forge_rom_mount() {
     fi
   done
 
+  # Do not turn the platform's /mnt/roms -> /roms link into a fallback when
+  # /roms is not mounted. Following it would write into the root filesystem.
+  [ -L "$forge_main/roms" ] && return 1
   mkdir -p "$forge_main/roms" || return 1
   [ -w "$forge_main/roms" ] || return 1
   printf '%s\n' "$forge_main/roms"

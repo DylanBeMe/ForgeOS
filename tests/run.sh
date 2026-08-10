@@ -126,6 +126,16 @@ convert board/miyoo/miyoo-splash.png -pointsize 12 -fill white \
  -type Palette -colors 224 -depth 8 -compress none -verbose BMP3:"${BINARIES_DIR}"/boot/miyoo-splash.bmp
 SH
 chmod 755 "$tmp/fake-upstream/board/miyoo/scripts/genimage.sh"
+cat > "$tmp/fake-upstream/board/miyoo/genimage-sdcard.cfg" <<'CFG'
+image bootfs.vfat {
+  vfat {
+    files = {
+      "boot/firstboot",
+      "boot/firstboot.custom.sh-OFF",
+    }
+  }
+}
+CFG
 printf 'upstream splash placeholder\n' > "$tmp/fake-upstream/board/miyoo/miyoo-splash.png"
 cat > "$tmp/fake-upstream/configs/miyoo_uclibc_defconfig" <<'CFG'
 BR2_PACKAGE_RETROARCH=y
@@ -213,6 +223,8 @@ fi
 cmp -s assets/forgeos-splash.png "$tmp/build-work/board/miyoo/miyoo-splash.png" ||   fail "image builder did not replace the upstream splash source"
 grep -q 'ForgeOS: guarantee custom firstboot hook'   "$tmp/build-work/board/miyoo/scripts/genimage.sh"
 grep -q 'ForgeOS: overwrite version-stamped splash with unannotated artwork'   "$tmp/build-work/board/miyoo/scripts/genimage.sh"
+grep -Fq '"boot/firstboot.custom.sh",' "$tmp/build-work/board/miyoo/genimage-sdcard.cfg" || \
+  fail "image builder did not add the live firstboot hook to the FAT manifest"
 [[ -f "$tmp/build-work/board/miyoo/main/logo.png" ]]
 [[ -f "$tmp/build-work/board/miyoo/main/logobg.png" ]]
 [[ -f "$tmp/build-work/board/miyoo/main/logo.wav" ]]
@@ -583,15 +595,22 @@ chmod 755 "$tmp/fake-forgeshell" "$tmp/fake-reboot" "$tmp/fake-poweroff" \
   "$tmp/shell-home/run-gmenu2x.sh"
 trace="$tmp/shell-trace"
 : > "$trace"
-printf 'launcher_mode=gmenu2x\n' > "$tmp/shell-home/config.ini"
+printf 'launcher_mode=gmenu2x\nonboarding_complete=1\n' > "$tmp/shell-home/config.ini"
 FORGESHELL_HOME="$tmp/shell-home" FORGESHELL_BIN="$tmp/fake-forgeshell" \
   FORGESHELL_TEST_TRACE="$trace" "$tmp/shell-home/boot-dispatch.sh"
 grep -q '^gmenu$' "$trace"
 if grep -q '^shell$' "$trace"; then
-  fail "gmenu2x launcher mode unexpectedly started ForgeShell"
+  fail "completed gmenu2x launcher mode unexpectedly started ForgeShell"
 fi
 
-printf 'launcher_mode=forgeshell\n' > "$tmp/shell-home/config.ini"
+printf 'launcher_mode=gmenu2x\nonboarding_complete=0\n' > "$tmp/shell-home/config.ini"
+: > "$trace"
+FORGESHELL_HOME="$tmp/shell-home" FORGESHELL_BIN="$tmp/fake-forgeshell" \
+  FORGESHELL_TEST_TRACE="$trace" "$tmp/shell-home/boot-dispatch.sh"
+grep -q '^shell$' "$trace" || fail "incomplete onboarding did not start ForgeShell"
+grep -q '^gmenu$' "$trace" || fail "ForgeShell exit did not retain GMenu2X recovery"
+
+printf 'launcher_mode=forgeshell\nonboarding_complete=1\n' > "$tmp/shell-home/config.ini"
 : > "$trace"
 for _ in 1 2 3 4; do
   FORGESHELL_HOME="$tmp/shell-home" FORGESHELL_BIN="$tmp/fake-forgeshell" \
