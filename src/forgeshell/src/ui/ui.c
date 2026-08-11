@@ -1223,8 +1223,21 @@ static int ui_launch_index(FsUi *ui, ssize_t game_index) {
     return result;
 }
 
+static int ui_open_console(void) {
+    const char *configured = getenv("FORGESHELL_CONSOLE");
+    const char *candidates[] = { configured, "/dev/tty", "/dev/tty1", "/dev/console" };
+    size_t i;
+    for (i = 0U; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+        int fd;
+        if (candidates[i] == NULL || candidates[i][0] == '\0') continue;
+        fd = open(candidates[i], O_RDWR);
+        if (fd >= 0) return fd;
+    }
+    return -1;
+}
+
 static void ui_attach_console(void) {
-    int tty = open("/dev/tty", O_RDWR);
+    int tty = ui_open_console();
     static const char reset[] = "\033[0m\033[2J\033[H";
     if (tty >= 0) {
         (void)dup2(tty, STDIN_FILENO);

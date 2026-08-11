@@ -8,6 +8,7 @@ FORGE_DIALOG_BIN=${FORGE_DIALOG_BIN:-dialog}
 FORGE_TMPDIR=${FORGE_TMPDIR:-/tmp}
 FORGE_UI_HEIGHT=${FORGE_UI_HEIGHT:-18}
 FORGE_UI_WIDTH=${FORGE_UI_WIDTH:-54}
+FORGE_TTY=${FORGE_TTY:-/dev/tty}
 FORGE_TOOL_DIR=${FORGE_TOOL_DIR:-$(CDPATH='' cd "$(dirname "$0")" 2>/dev/null && pwd)}
 
 # Match ForgeShell's Midnight Mint palette as closely as the Linux-console
@@ -21,11 +22,14 @@ forge_has_dialog() {
   command -v "$FORGE_DIALOG_BIN" >/dev/null 2>&1
 }
 
-# Frontends are launched with stdout/stderr redirected to logs or /dev/null.
-# Bind interactive dialog widgets to the real console explicitly.
+# Frontends may be launched without a controlling terminal even though the
+# /dev/tty device node itself is readable and writable. Probe by opening it:
+# permission bits alone produce a false positive and make the shell abort the
+# dialog command before it starts. ForgeShell attaches inherited stdio to the
+# active console, so falling back to those descriptors remains interactive.
 forge_dialog_exec() {
-  if [ -r /dev/tty ] && [ -w /dev/tty ]; then
-    "$@" < /dev/tty 2> /dev/tty
+  if ( : <> "$FORGE_TTY" ) 2>/dev/null; then
+    "$@" < "$FORGE_TTY" 2> "$FORGE_TTY"
   else
     "$@"
   fi

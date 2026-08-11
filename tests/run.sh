@@ -49,6 +49,19 @@ custom_dialog_theme=$(DIALOGRC=/tmp/custom-dialogrc \
   sh -c '. "$1/common.sh"; printf "%s" "$DIALOGRC"' sh \
   "$ROOT_DIR/overlay/board/miyoo/main/apps/forge-tools")
 [[ "$custom_dialog_theme" == /tmp/custom-dialogrc ]]
+# /dev/tty can exist with permissive mode bits while the process has no
+# controlling terminal. A failed tty open must fall back to inherited stdio
+# instead of preventing dialog from executing at all.
+cat > "$tmp/fake-dialog" <<'SH'
+#!/bin/sh
+printf 'dialog-ran\n'
+SH
+chmod 755 "$tmp/fake-dialog"
+dialog_fallback=$(FORGE_TTY="$tmp/no-controlling-tty" FORGE_DIALOG_BIN="$tmp/fake-dialog" \
+  FORGE_TOOL_DIR="$ROOT_DIR/overlay/board/miyoo/main/apps/forge-tools" \
+  sh -c '. "$1/common.sh"; forge_dialog "Test" "TTY fallback"' sh \
+  "$ROOT_DIR/overlay/board/miyoo/main/apps/forge-tools")
+[[ "$dialog_fallback" == dialog-ran ]] || fail "dialog did not fall back when the controlling tty was unavailable"
 tmpfile_check=$(FORGE_TMPDIR="$tmp" \
   FORGE_TOOL_DIR="$ROOT_DIR/overlay/board/miyoo/main/apps/forge-tools" \
   sh -c 'umask 022; . "$1/common.sh"; before=$(umask); f=$(forge_tmpfile); after=$(umask); mode=$(stat -c %a "$f"); rm -f "$f"; printf "%s %s %s" "$before" "$after" "$mode"' sh \
