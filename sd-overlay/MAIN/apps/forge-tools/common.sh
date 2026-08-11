@@ -29,6 +29,9 @@ forge_has_dialog() {
 # active console, so falling back to those descriptors remains interactive.
 forge_dialog_exec() {
   if ( : <> "$FORGE_TTY" ) 2>/dev/null; then
+    # FORGE_TTY is a terminal device, not a regular file; sharing it between
+    # stdin and stderr is intentional and does not have SC2094 offset hazards.
+    # shellcheck disable=SC2094
     "$@" < "$FORGE_TTY" 2> "$FORGE_TTY"
   else
     "$@"
