@@ -1,0 +1,4 @@
+title=Date & Time
+description=Set and persist the system clock
+exec=/mnt/apps/forge-tools/date-time.sh
+icon=/mnt/apps/forge-tools/icon-info.png

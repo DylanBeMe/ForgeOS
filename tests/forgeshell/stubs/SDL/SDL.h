@@ -25,6 +25,7 @@ typedef union SDL_Event { Uint8 type; SDL_KeyboardEvent key; } SDL_Event;
 #define SDL_DISABLE 0
 #define SDL_QUIT 12
 #define SDL_KEYDOWN 2
+#define SDL_KEYUP 3
 #define SDL_USEREVENT 24
 int SDL_Init(Uint32 flags);
 void SDL_Quit(void);

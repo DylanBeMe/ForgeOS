@@ -4,6 +4,7 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_ttf.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,6 +74,8 @@ typedef struct {
     ssize_t game_options_index;
     int game_options_selection;
     int config_needs_lkg;
+    int power_chord_down;
+    int power_chord_used;
 } FsUi;
 
 static const char *const page_titles[PAGE_COUNT] = {
@@ -89,6 +92,7 @@ static const char search_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -";
 
 static int ui_run_tool(FsUi *ui, const FsToolEntry *tool);
 static int ui_write_config(FsUi *ui, const char *key, const char *value);
+static void ui_handle_action(FsUi *ui, FsAction action);
 static int ui_write_config_many(FsUi *ui, const char *const *keys,
                                 const char *const *values, size_t count);
 
@@ -838,7 +842,7 @@ static const char *ui_on_off(int value) {
 
 static void ui_draw_settings(FsUi *ui) {
     static const char *const labels[] = {
-        "Default launcher", "Scan each startup", "Large text",
+        "Default launcher", "Date & time", "Scan each startup", "Large text",
         "High contrast", "Metadata and artwork", "Safe mode next boot",
         "Recovery hint", "Rescan library", "Run setup again"
     };
@@ -846,17 +850,18 @@ static void ui_draw_settings(FsUi *ui) {
     int first = selection > 3 ? selection - 3 : 0;
     int row;
     ui_draw_header(ui, "Simple defaults and accessibility");
-    for (row = 0; row < 5 && first + row < 9; row++) {
+    for (row = 0; row < 5 && first + row < 10; row++) {
         const char *value = "Run";
         switch (first + row) {
             case 0: value = fs_casecmp(ui->config->launcher_mode, "forgeshell") == 0 ? "ForgeShell" : ui_fallback_name(ui); break;
-            case 1: value = ui_on_off(ui->config->scan_on_start); break;
-            case 2: value = ui_on_off(ui->config->large_text); break;
-            case 3: value = ui_on_off(ui->config->high_contrast); break;
-            case 4: value = ui_on_off(ui->config->metadata_enabled); break;
-            case 5: value = ui_on_off(ui->config->safe_mode_next_boot); break;
-            case 6: value = ui_on_off(ui->config->show_recovery_hint); break;
-            case 8: value = "Start"; break;
+            case 1: value = "Set"; break;
+            case 2: value = ui_on_off(ui->config->scan_on_start); break;
+            case 3: value = ui_on_off(ui->config->large_text); break;
+            case 4: value = ui_on_off(ui->config->high_contrast); break;
+            case 5: value = ui_on_off(ui->config->metadata_enabled); break;
+            case 6: value = ui_on_off(ui->config->safe_mode_next_boot); break;
+            case 7: value = ui_on_off(ui->config->show_recovery_hint); break;
+            case 9: value = "Start"; break;
             default: break;
         }
         ui_list_row(ui, row, selection == first + row, labels[first + row], value, 0);
@@ -1125,7 +1130,7 @@ static int ui_page_item_count(FsUi *ui) {
         case PAGE_SEARCH: return (int)ui->search_count;
         case PAGE_ACTIVITY: return (int)ui->sessions->count;
         case PAGE_TOOLS: return ui->tools == NULL ? 0 : (int)ui->tools->count;
-        case PAGE_SETTINGS: return 9;
+        case PAGE_SETTINGS: return 10;
         case PAGE_POWER: return ui->platform->cap_safe_shutdown ? 3 : 1;
         default: return 0;
     }
@@ -1218,6 +1223,51 @@ static int ui_launch_index(FsUi *ui, ssize_t game_index) {
     return result;
 }
 
+static void ui_attach_console(void) {
+    int tty = open("/dev/tty", O_RDWR);
+    static const char reset[] = "\033[0m\033[2J\033[H";
+    if (tty >= 0) {
+        (void)dup2(tty, STDIN_FILENO);
+        (void)dup2(tty, STDOUT_FILENO);
+        (void)dup2(tty, STDERR_FILENO);
+        if (tty > STDERR_FILENO) (void)close(tty);
+        (void)write(STDOUT_FILENO, reset, sizeof(reset) - 1U);
+    }
+    if (getenv("TERM") == NULL) (void)setenv("TERM", "linux", 1);
+}
+
+static void ui_adjust_brightness(FsUi *ui, int direction) {
+    char helper_path[FS_MAX_PATH];
+    pid_t child;
+    int status = 0;
+    int result = -1;
+    const char *argument = direction < 0 ? "down" : "up";
+    if (ui == NULL || !ui->platform->cap_brightness ||
+        fs_path_join(helper_path, sizeof(helper_path),
+                     ui->platform->tool_root, "brightness-control.sh") != 0 ||
+        access(helper_path, X_OK) != 0) {
+        if (ui != NULL) ui_toast(ui, "Brightness control is unavailable");
+        return;
+    }
+    child = fork();
+    if (child == 0) {
+        execl(helper_path, helper_path, argument, (char *)NULL);
+        _exit(127);
+    }
+    if (child > 0) {
+        pid_t waited;
+        do {
+            waited = waitpid(child, &status, 0);
+        } while (waited < 0 && errno == EINTR);
+        if (waited == child && WIFEXITED(status)) result = WEXITSTATUS(status);
+    }
+    if (result == 0) {
+        ui_toast(ui, direction < 0 ? "Brightness decreased" : "Brightness increased");
+    } else {
+        ui_toast(ui, "Brightness could not be changed");
+    }
+}
+
 static int ui_run_tool(FsUi *ui, const FsToolEntry *tool) {
     pid_t child;
     int status = 0;
@@ -1229,6 +1279,7 @@ static int ui_run_tool(FsUi *ui, const FsToolEntry *tool) {
     ui_graphics_quit(ui);
     child = fork();
     if (child == 0) {
+        ui_attach_console();
         execl("/bin/sh", "sh", "-c", tool->command, (char *)NULL);
         _exit(127);
     }
@@ -1604,13 +1655,19 @@ static void ui_activate_settings(FsUi *ui) {
             break;
         }
         case 1: {
+            const FsToolEntry *clock_tool = ui_find_tool(ui, "date-time");
+            if (clock_tool != NULL) (void)ui_run_tool(ui, clock_tool);
+            else ui_toast(ui, "Date & time control is unavailable");
+            break;
+        }
+        case 2: {
             int next = !ui->config->scan_on_start;
             if (ui_write_config(ui, "scan_on_start", next ? "1" : "0") == 0) {
                 ui->config->scan_on_start = next;
             }
             break;
         }
-        case 2: {
+        case 3: {
             int previous = ui->config->large_text;
             int next = !previous;
             ui->config->large_text = next;
@@ -1624,7 +1681,7 @@ static void ui_activate_settings(FsUi *ui) {
             }
             break;
         }
-        case 3: {
+        case 4: {
             int next = !ui->config->high_contrast;
             if (ui_write_config(ui, "high_contrast", next ? "1" : "0") == 0) {
                 ui->config->high_contrast = next;
@@ -1632,7 +1689,7 @@ static void ui_activate_settings(FsUi *ui) {
             }
             break;
         }
-        case 4: {
+        case 5: {
             int next = !ui->config->metadata_enabled;
             if (ui_write_config(ui, "metadata_enabled", next ? "1" : "0") == 0) {
                 ui->config->metadata_enabled = next;
@@ -1651,7 +1708,7 @@ static void ui_activate_settings(FsUi *ui) {
             }
             break;
         }
-        case 5: {
+        case 6: {
             int next = !ui->config->safe_mode_next_boot;
             if (ui_write_config(ui, "safe_mode_next_boot", next ? "1" : "0") == 0) {
                 ui->config->safe_mode_next_boot = next;
@@ -1659,14 +1716,14 @@ static void ui_activate_settings(FsUi *ui) {
             }
             break;
         }
-        case 6: {
+        case 7: {
             int next = !ui->config->show_recovery_hint;
             if (ui_write_config(ui, "show_recovery_hint", next ? "1" : "0") == 0) {
                 ui->config->show_recovery_hint = next;
             }
             break;
         }
-        case 7:
+        case 8:
             if (ui->safe_mode) {
                 ui_toast(ui, "Scanning is disabled in safe mode");
             } else if (fs_library_start_scan(ui->library) != 0) {
@@ -1675,7 +1732,7 @@ static void ui_activate_settings(FsUi *ui) {
                 ui_toast(ui, "Library rescan started");
             }
             break;
-        case 8:
+        case 9:
             ui->onboarding_step = 0;
             ui->onboarding_choice = fs_casecmp(ui->config->launcher_mode, "forgeshell") == 0;
             ui->onboarding_active = 1;
@@ -1683,7 +1740,6 @@ static void ui_activate_settings(FsUi *ui) {
         default:
             break;
     }
-    ui->needs_redraw = 1;
 }
 
 static void ui_activate(FsUi *ui) {
@@ -1820,6 +1876,38 @@ static void ui_handle_action(FsUi *ui, FsAction action) {
     }
 }
 
+static void ui_handle_key_event(FsUi *ui, const SDL_KeyboardEvent *key, int pressed) {
+    FsAction action;
+    if (ui == NULL || key == NULL) return;
+    action = fs_platform_translate_key(ui->platform, key->keysym.sym);
+    if (!ui->platform->cap_brightness) {
+        if (pressed) ui_handle_action(ui, action);
+        return;
+    }
+    if (pressed) {
+        if (action == FS_ACTION_POWER) {
+            if (!ui->power_chord_down) {
+                ui->power_chord_down = 1;
+                ui->power_chord_used = 0;
+            }
+            return;
+        }
+        if (ui->power_chord_down &&
+            (action == FS_ACTION_PAGE_LEFT || action == FS_ACTION_PAGE_RIGHT)) {
+            ui->power_chord_used = 1;
+            ui_adjust_brightness(ui, action == FS_ACTION_PAGE_LEFT ? -1 : 1);
+            return;
+        }
+        ui_handle_action(ui, action);
+    } else if (action == FS_ACTION_POWER) {
+        if (ui->power_chord_down && !ui->power_chord_used) {
+            ui_handle_action(ui, FS_ACTION_POWER);
+        }
+        ui->power_chord_down = 0;
+        ui->power_chord_used = 0;
+    }
+}
+
 int fs_ui_run(const FsPlatform *platform, FsToolCatalog *tools,
               FsConfig *config, FsTheme *theme, FsLibrary *library,
               FsFavorites *favorites, FsSessions *sessions,
@@ -1891,7 +1979,9 @@ int fs_ui_run(const FsPlatform *platform, FsToolCatalog *tools,
                 ui.running = 0;
                 ui.exit_action = FS_EXIT_GMENU;
             } else if (event.type == SDL_KEYDOWN) {
-                ui_handle_action(&ui, fs_platform_translate_key(ui.platform, event.key.keysym.sym));
+                ui_handle_key_event(&ui, &event.key, 1);
+            } else if (event.type == SDL_KEYUP) {
+                ui_handle_key_event(&ui, &event.key, 0);
             } else if (event.type == SDL_USEREVENT) {
                 ui.needs_redraw = 1;
             }
@@ -1936,7 +2026,9 @@ int fs_ui_run(const FsPlatform *platform, FsToolCatalog *tools,
             if (event.type == SDL_QUIT) {
                 ui.running = 0;
             } else if (event.type == SDL_KEYDOWN) {
-                ui_handle_action(&ui, fs_platform_translate_key(ui.platform, event.key.keysym.sym));
+                ui_handle_key_event(&ui, &event.key, 1);
+            } else if (event.type == SDL_KEYUP) {
+                ui_handle_key_event(&ui, &event.key, 0);
             } else if (event.type == SDL_USEREVENT) {
                 ui.needs_redraw = 1;
             }

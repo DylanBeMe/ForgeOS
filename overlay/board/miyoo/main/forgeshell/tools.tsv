@@ -1,5 +1,6 @@
 # id	title	meta	command	requires
 system-info	System Overview	Hardware	${tool_root}/system-info.sh	system_info
+date-time	Date & Time	Clock	${tool_root}/date-time.sh	always
 emulator-overview	Emulator Overview	Versions	${tool_root}/emulator-overview.sh	always
 storage-health	Storage Check	SD health	${tool_root}/storage-health.sh	storage_health
 performance-mode	CPU Profile	Performance	${tool_root}/performance-mode.sh	cpu_profiles

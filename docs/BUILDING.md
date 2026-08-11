@@ -42,6 +42,10 @@ JOBS=4 ./forge-build q90
 `WORKDIR` must be empty or previously created by ForgeOS. The builder refuses to
 reset an unrelated Git checkout.
 
+The core Q90 source revisions are pinned in `platforms/q90/build.env`: the parent
+MiyooCFW Buildroot revision plus the kernel, U-Boot, and GMenu2X commits. The builder
+rewrites the upstream `origin/master` references before invoking Buildroot.
+
 ## Outputs
 
 The `dist/` directory contains the raw image, SHA-256 checksum, exact upstream

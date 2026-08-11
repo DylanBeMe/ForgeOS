@@ -15,6 +15,9 @@ WORKDIR="${WORKDIR:-$ROOT_DIR/build/${FORGE_TARGET}-buildroot}"
 DOWNLOAD_DIR="${DOWNLOAD_DIR:-$ROOT_DIR/build/downloads}"
 UPSTREAM_URL="${UPSTREAM_URL:-$FORGE_UPSTREAM_URL}"
 UPSTREAM_REF="${UPSTREAM_REF:-$FORGE_UPSTREAM_REF}"
+KERNEL_REF="${KERNEL_REF:-$FORGE_KERNEL_REF}"
+UBOOT_REF="${UBOOT_REF:-$FORGE_UBOOT_REF}"
+GMENU2X_REF="${GMENU2X_REF:-$FORGE_GMENU2X_REF}"
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}"
 OWNED_MARKER="$WORKDIR/.forgeos-managed-worktree"
 OVERLAY_MARKER="$WORKDIR/.forgeos-overlay-hash"
@@ -26,6 +29,10 @@ fail() {
 
 [[ "$(uname -s)" == Linux ]] || fail "full-image builds require Linux"
 [[ "$JOBS" =~ ^[1-9][0-9]*$ ]] || fail "JOBS must be a positive integer"
+for ref_name in KERNEL_REF UBOOT_REF GMENU2X_REF; do
+  ref_value="${!ref_name}"
+  [[ "$ref_value" =~ ^[0-9a-f]{40}$ ]] || fail "$ref_name must be a full 40-character Git commit"
+done
 
 for tool in git make rsync sha256sum install find sort xargs awk python3; do
   command -v "$tool" >/dev/null 2>&1 || fail "missing required tool: $tool"
@@ -61,6 +68,8 @@ overlay_hash=$(
     find "platforms/$FORGE_TARGET" -printf '%y %m %p %l\n' | LC_ALL=C sort
     find "platforms/$FORGE_TARGET" -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum
     sha256sum VERSION build.sh tools/generate-emulator-manifest.py tools/forge-build tools/validate-platform.py
+    printf 'upstream_ref=%s\nkernel_ref=%s\nuboot_ref=%s\ngmenu2x_ref=%s\n' \
+      "$UPSTREAM_REF" "$KERNEL_REF" "$UBOOT_REF" "$GMENU2X_REF"
   } | sha256sum | awk '{print $1}'
 )
 
@@ -85,6 +94,46 @@ elif [[ -n "$previous_overlay_hash" && "$previous_overlay_hash" != "$overlay_has
 fi
 printf '%s\n' "$resolved_ref" > "$OWNED_MARKER"
 printf '%s\n' "$overlay_hash" > "$OVERLAY_MARKER"
+
+# The pinned MiyooCFW snapshot still points several nested Git inputs at
+# origin/master. Rewrite those inputs to immutable commits before Buildroot
+# resolves package/config metadata so repeated ForgeOS builds use the same
+# kernel, bootloader, and fallback frontend sources.
+gmenu_mk="$WORKDIR/package/miyoo/gmenu2x/gmenu2x.mk"
+defconfig="$WORKDIR/$FORGE_CONFIG_FILE"
+[[ -f "$gmenu_mk" ]] || fail "upstream GMenu2X package definition is missing"
+[[ -f "$defconfig" ]] || fail "upstream target defconfig is missing"
+python3 - "$gmenu_mk" "$defconfig" "$GMENU2X_REF" "$KERNEL_REF" "$UBOOT_REF" <<'PY_SOURCE_PINS'
+from pathlib import Path
+import sys
+
+gmenu_path = Path(sys.argv[1])
+defconfig_path = Path(sys.argv[2])
+gmenu_ref, kernel_ref, uboot_ref = sys.argv[3:6]
+
+gmenu = gmenu_path.read_text()
+gmenu_old = "GMENU2X_VERSION = origin/master"
+gmenu_new = f"GMENU2X_VERSION = {gmenu_ref}"
+if gmenu_old in gmenu:
+    gmenu = gmenu.replace(gmenu_old, gmenu_new, 1)
+elif gmenu_new not in gmenu:
+    raise SystemExit("could not locate floating GMenu2X revision")
+gmenu_path.write_text(gmenu)
+
+defconfig = defconfig_path.read_text()
+replacements = {
+    'BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="origin/master"':
+        f'BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="{kernel_ref}"',
+    'BR2_TARGET_UBOOT_CUSTOM_REPO_VERSION="origin/master"':
+        f'BR2_TARGET_UBOOT_CUSTOM_REPO_VERSION="{uboot_ref}"',
+}
+for old, new in replacements.items():
+    if old in defconfig:
+        defconfig = defconfig.replace(old, new, 1)
+    elif new not in defconfig:
+        raise SystemExit(f"could not locate floating source revision: {old}")
+defconfig_path.write_text(defconfig)
+PY_SOURCE_PINS
 
 # Buildroot 2022.02.x generated its -br1 VCS archives with GNU tar <= 1.34.
 # GNU tar 1.35 changed the devmajor/devminor header representation, which
@@ -295,8 +344,9 @@ PY_BOOTFS
 for file in .backlight.conf .volume.conf logo.png logobg.png logo.wav; do
   install -m 0644 "$overlay_dir/main/$file" "$board_dir/main/$file"
 done
-printf 'ForgeOS %s %s\nTarget: %s\nUpstream Buildroot revision: %s\nEmulator manifest: /mnt/forgeos-emulators.txt\n' \
-  "$FORGE_DEVICE_NAME" "$VERSION" "$FORGE_DEVICE_ID" "$resolved_ref" > "$board_dir/main/forgeos-version.txt"
+printf 'ForgeOS %s %s\nTarget: %s\nUpstream Buildroot revision: %s\nKernel revision: %s\nU-Boot revision: %s\nGMenu2X revision: %s\nEmulator manifest: /mnt/forgeos-emulators.txt\n' \
+  "$FORGE_DEVICE_NAME" "$VERSION" "$FORGE_DEVICE_ID" "$resolved_ref" \
+  "$KERNEL_REF" "$UBOOT_REF" "$GMENU2X_REF" > "$board_dir/main/forgeos-version.txt"
 install -m 0644 "$manifest_tmp" "$board_dir/main/forgeos-emulators.txt"
 
 pushd "$WORKDIR" >/dev/null

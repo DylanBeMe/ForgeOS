@@ -28,7 +28,7 @@ case $choice in
     fi
     cat > "$CONFIG.tmp.$$" <<'CFG'
 # ForgeShell settings reset by the recovery tool.
-launcher_mode=gmenu2x
+launcher_mode=forgeshell
 scan_on_start=0
 large_text=0
 high_contrast=0
@@ -40,7 +40,7 @@ show_recovery_hint=1
 CFG
     if mv -f "$CONFIG.tmp.$$" "$CONFIG"; then
       rm -f "$STATE/library-cache.tsv" "$STATE/boot-failures"
-      forge_dialog "Reset ForgeShell" "Settings were reset. GMenu2X remains the boot launcher and setup will run again."
+      forge_dialog "Reset ForgeShell" "Settings were reset. ForgeShell is the boot launcher and setup will run again."
     else
       rm -f "$CONFIG.tmp.$$"
       forge_dialog "Reset ForgeShell" "The settings file could not be reset."

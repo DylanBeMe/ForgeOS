@@ -15,7 +15,7 @@
 static int ensure_default_config(const char *path) {
     static const char defaults[] =
         "# ForgeShell settings. Unknown keys are retained during updates.\n"
-        "launcher_mode=gmenu2x\n"
+        "launcher_mode=forgeshell\n"
         "scan_on_start=0\n"
         "large_text=0\n"
         "high_contrast=0\n"

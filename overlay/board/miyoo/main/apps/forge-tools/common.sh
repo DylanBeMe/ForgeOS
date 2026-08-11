@@ -21,6 +21,20 @@ forge_has_dialog() {
   command -v "$FORGE_DIALOG_BIN" >/dev/null 2>&1
 }
 
+# Frontends are launched with stdout/stderr redirected to logs or /dev/null.
+# Bind interactive dialog widgets to the real console explicitly.
+forge_dialog_exec() {
+  if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    "$@" < /dev/tty 2> /dev/tty
+  else
+    "$@"
+  fi
+}
+
+forge_dialog_capture() {
+  forge_dialog_exec "$FORGE_DIALOG_BIN" --stdout "$@"
+}
+
 forge_tmpfile() {
   if command -v mktemp >/dev/null 2>&1; then
     (umask 077; mktemp "$FORGE_TMPDIR/forgeos.XXXXXX")
@@ -49,7 +63,7 @@ forge_dialog() {
 /g')
 
   if forge_has_dialog; then
-    "$FORGE_DIALOG_BIN" --clear --no-shadow \
+    forge_dialog_exec "$FORGE_DIALOG_BIN" --clear --no-shadow \
       --backtitle "$FORGE_BRAND" --title "$forge_title" \
       --msgbox "$forge_message" "$FORGE_UI_HEIGHT" "$FORGE_UI_WIDTH"
     return $?
@@ -71,7 +85,7 @@ forge_report() {
 
   printf '%s\n' "$forge_content" > "$forge_report_file"
   if forge_has_dialog; then
-    "$FORGE_DIALOG_BIN" --clear --no-shadow \
+    forge_dialog_exec "$FORGE_DIALOG_BIN" --clear --no-shadow \
       --backtitle "$FORGE_BRAND" --title "$forge_title" \
       --exit-label "Back" --textbox "$forge_report_file" 20 58
     forge_status=$?
@@ -90,7 +104,7 @@ forge_textbox() {
   forge_file=$2
   [ -r "$forge_file" ] || return 1
   if forge_has_dialog; then
-    "$FORGE_DIALOG_BIN" --clear --no-shadow \
+    forge_dialog_exec "$FORGE_DIALOG_BIN" --clear --no-shadow \
       --backtitle "$FORGE_BRAND" --title "$forge_title" \
       --exit-label "Back" --textbox "$forge_file" 20 58
     return $?
@@ -104,7 +118,7 @@ forge_confirm() {
   forge_message=$2
 
   if forge_has_dialog; then
-    "$FORGE_DIALOG_BIN" --clear --no-shadow \
+    forge_dialog_exec "$FORGE_DIALOG_BIN" --clear --no-shadow \
       --backtitle "$FORGE_BRAND" --title "$forge_title" \
       --yes-label "Continue" --no-label "Cancel" \
       --yesno "$forge_message" 15 "$FORGE_UI_WIDTH"
@@ -126,16 +140,14 @@ forge_menu() {
   fi
 
   forge_has_dialog || return 1
-  forge_menu_file=$(forge_tmpfile) || return 1
-  "$FORGE_DIALOG_BIN" --clear --no-shadow \
+  forge_menu_choice=$(forge_dialog_capture --clear --no-shadow \
     --backtitle "$FORGE_BRAND" --title "$forge_title" \
     --cancel-label "Back" --menu "$forge_prompt" 18 58 4 \
-    "$@" 2> "$forge_menu_file"
+    "$@")
   forge_status=$?
   if [ "$forge_status" -eq 0 ]; then
-    cat "$forge_menu_file"
+    printf '%s\n' "$forge_menu_choice"
   fi
-  rm -f "$forge_menu_file"
   return "$forge_status"
 }
 

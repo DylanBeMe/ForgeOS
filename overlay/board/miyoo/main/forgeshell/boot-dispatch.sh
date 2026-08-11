@@ -5,7 +5,7 @@ umask 022
 HOME_DIR=${FORGESHELL_HOME:-/mnt/forgeshell}
 CONFIG=$HOME_DIR/config.ini
 STATE_DIR=$HOME_DIR/state
-MODE=gmenu2x
+MODE=forgeshell
 SAFE_MODE=0
 REBOOT_BIN=${FORGESHELL_REBOOT_BIN:-/sbin/reboot}
 POWEROFF_BIN=${FORGESHELL_POWEROFF_BIN:-/sbin/poweroff}
@@ -18,8 +18,8 @@ config_value() {
 
 configured=$(config_value launcher_mode)
 case $configured in forgeshell|gmenu2x) MODE=$configured ;; esac
-# First-run setup belongs to ForgeShell even when GMenu2X is the default saved
-# launcher. Without this override onboarding can never be shown automatically.
+# First-run setup always belongs to ForgeShell. GMenu2X remains an explicit
+# recovery/default choice, but a missing or fresh config now falls back to ForgeShell.
 case $(config_value onboarding_complete) in
     1|yes|true|on) ;;
     *) MODE=forgeshell ;;

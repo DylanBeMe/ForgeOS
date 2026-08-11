@@ -3,6 +3,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 VERSION="$(<VERSION)"
+# shellcheck source=/dev/null
+source platforms/q90/build.env
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
@@ -112,7 +114,8 @@ mkdir -p \
   "$tmp/fake-upstream/package/miyoo/retroarch/libretro-retroarch" \
   "$tmp/fake-upstream/package/miyoo/retroarch/libretro-gpsp" \
   "$tmp/fake-upstream/package/miyoo/retroarch/libretro-picodrive" \
-  "$tmp/fake-upstream/package/miyoo/ipk/gpsp"
+  "$tmp/fake-upstream/package/miyoo/ipk/gpsp" \
+  "$tmp/fake-upstream/package/miyoo/gmenu2x"
 cat > "$tmp/fake-upstream/board/miyoo/boot/firstboot" <<'SH'
 #!/bin/sh
 dialog --backtitle "MiyooCFW 2.0" --msgbox "\ZbMiyooCFW\Zn" 0 0
@@ -138,11 +141,13 @@ image bootfs.vfat {
 CFG
 printf 'upstream splash placeholder\n' > "$tmp/fake-upstream/board/miyoo/miyoo-splash.png"
 cat > "$tmp/fake-upstream/configs/miyoo_uclibc_defconfig" <<'CFG'
+BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="origin/master"
 BR2_PACKAGE_RETROARCH=y
 BR2_PACKAGE_LIBRETRO_ASSETS=y
 BR2_PACKAGE_LIBRETRO_GPSP=y
 BR2_PACKAGE_LIBRETRO_PICODRIVE=y
 BR2_PACKAGE_IPK_GPSP=y
+BR2_TARGET_UBOOT_CUSTOM_REPO_VERSION="origin/master"
 CFG
 cat > "$tmp/fake-upstream/package/miyoo/Config.in" <<'CFG'
 menu "Miyoo packages"
@@ -164,6 +169,11 @@ MK
 cat > "$tmp/fake-upstream/package/miyoo/ipk/gpsp/gpsp.mk" <<'MK'
 GPSP_VERSION = gpsp-standalone-test-rev
 GPSP_SITE = https://example.invalid/gpsp-standalone
+MK
+cat > "$tmp/fake-upstream/package/miyoo/gmenu2x/gmenu2x.mk" <<'MK'
+GMENU2X_VERSION = origin/master
+GMENU2X_SITE_METHOD = git
+GMENU2X_SITE = https://example.invalid/gmenu2x
 MK
 cat > "$tmp/fake-upstream/Makefile" <<'MK'
 .DEFAULT_GOAL := all
@@ -212,6 +222,12 @@ if find "$tmp/build-work/package/miyoo/forgeshell" -name '*.o' -print -quit | gr
 fi
 grep -q 'package/miyoo/forgeshell/Config.in' "$tmp/build-work/package/miyoo/Config.in"
 grep -q '^BR2_PACKAGE_FORGESHELL=y$' "$tmp/build-work/configs/miyoo_uclibc_defconfig"
+grep -q '^BR2_LINUX_KERNEL_CUSTOM_REPO_VERSION="'"$FORGE_KERNEL_REF"'"$' "$tmp/build-work/configs/miyoo_uclibc_defconfig"
+grep -q '^BR2_TARGET_UBOOT_CUSTOM_REPO_VERSION="'"$FORGE_UBOOT_REF"'"$' "$tmp/build-work/configs/miyoo_uclibc_defconfig"
+grep -q '^GMENU2X_VERSION = '"$FORGE_GMENU2X_REF"'$' "$tmp/build-work/package/miyoo/gmenu2x/gmenu2x.mk"
+grep -q '^Kernel revision: '"$FORGE_KERNEL_REF"'$' "$tmp/build-work/board/miyoo/main/forgeos-version.txt"
+grep -q '^U-Boot revision: '"$FORGE_UBOOT_REF"'$' "$tmp/build-work/board/miyoo/main/forgeos-version.txt"
+grep -q '^GMenu2X revision: '"$FORGE_GMENU2X_REF"'$' "$tmp/build-work/board/miyoo/main/forgeos-version.txt"
 [[ -x "$tmp/build-work/board/miyoo/main/autoexec.sh" ]]
 [[ -x "$tmp/build-work/board/miyoo/main/forgeshell/forgeshell-start.sh" ]]
 [[ -x "$tmp/build-work/board/miyoo/boot/firstboot.custom.sh" ]]
@@ -376,6 +392,22 @@ FORGE_CPU_DIR="$cpu" overlay/board/miyoo/main/apps/forge-tools/cpu-profile-contr
 [[ "$(cat "$cpu/scaling_max_freq")" == 600000 ]]
 [[ "$(cat "$cpu/scaling_governor")" == ondemand ]]
 [[ ! -e "$tmp/cpu-state" ]]
+
+# Brightness shortcut helper uses the kernel range, persists the new value, and never reaches zero.
+backlight="$tmp/backlight"
+mkdir -p "$backlight"
+printf '5\n' > "$backlight/brightness"
+printf '10\n' > "$backlight/max_brightness"
+FORGE_BACKLIGHT_PATH="$backlight/brightness" FORGE_BACKLIGHT_MAX_PATH="$backlight/max_brightness" \
+  FORGE_BACKLIGHT_CONFIG="$tmp/backlight.conf" \
+  overlay/board/miyoo/main/apps/forge-tools/brightness-control.sh up >/dev/null
+[[ "$(cat "$backlight/brightness")" == 6 ]]
+[[ "$(cat "$tmp/backlight.conf")" == 6 ]]
+printf '1\n' > "$backlight/brightness"
+FORGE_BACKLIGHT_PATH="$backlight/brightness" FORGE_BACKLIGHT_MAX_PATH="$backlight/max_brightness" \
+  FORGE_BACKLIGHT_CONFIG="$tmp/backlight.conf" \
+  overlay/board/miyoo/main/apps/forge-tools/brightness-control.sh down >/dev/null
+[[ "$(cat "$backlight/brightness")" == 1 ]]
 
 # Desktop metadata generation preserves empty fields and validates options.
 mkdir -p "$tmp/index-input" "$tmp/index-out"
@@ -548,7 +580,7 @@ make_dump=$(make -f "$forge_src/Makefile" -pn SDL_CONFIG=true \
 grep -q 'CFLAGS = -O2.*-std=c11.*-ffunction-sections' <<<"$make_dump"
 grep -q 'LDFLAGS = -Wl,--as-needed.*--gc-sections' <<<"$make_dump"
 
-# Dual-launcher recovery: GMenu2X default, startup-failure fallback, manual
+# Dual-launcher recovery: ForgeShell default, GMenu2X opt-out/fallback, manual
 # recovery reset, and explicit reboot/poweroff dispatch.
 mkdir -p "$tmp/shell-home/state"
 cp overlay/board/miyoo/main/forgeshell/*.sh "$tmp/shell-home/"
@@ -594,6 +626,12 @@ SH
 chmod 755 "$tmp/fake-forgeshell" "$tmp/fake-reboot" "$tmp/fake-poweroff" \
   "$tmp/shell-home/run-gmenu2x.sh"
 trace="$tmp/shell-trace"
+: > "$trace"
+rm -f "$tmp/shell-home/config.ini"
+FORGESHELL_HOME="$tmp/shell-home" FORGESHELL_BIN="$tmp/fake-forgeshell" \
+  FORGESHELL_TEST_TRACE="$trace" "$tmp/shell-home/boot-dispatch.sh"
+grep -q '^shell$' "$trace" || fail "missing config did not default to ForgeShell"
+grep -q '^gmenu$' "$trace" || fail "ForgeShell exit did not retain GMenu2X recovery"
 : > "$trace"
 printf 'launcher_mode=gmenu2x\nonboarding_complete=1\n' > "$tmp/shell-home/config.ini"
 FORGESHELL_HOME="$tmp/shell-home" FORGESHELL_BIN="$tmp/fake-forgeshell" \
@@ -695,6 +733,7 @@ grep -q '^Target idle VmRSS: under 8192 kB.$' "$perf_report"
 
 # Launcher titles, panel titles, and icon references stay coherent.
 grep -q '^title=System Overview$' overlay/board/miyoo/main/gmenu2x/sections/ForgeOS/system-info
+grep -q '^title=Date & Time$' overlay/board/miyoo/main/gmenu2x/sections/ForgeOS/date-time
 grep -q '^title=Emulator Overview$' overlay/board/miyoo/main/gmenu2x/sections/ForgeOS/emulator-overview
 grep -q '^title=Storage Check$' overlay/board/miyoo/main/gmenu2x/sections/ForgeOS/storage-health
 grep -q '^title=CPU Profile$' overlay/board/miyoo/main/gmenu2x/sections/ForgeOS/performance-mode

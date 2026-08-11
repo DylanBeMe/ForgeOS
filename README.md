@@ -25,7 +25,7 @@ GMenu2X remains installed as the fallback frontend.
 - Atomic state writes, safe mode, last-known-good settings, and automatic recovery.
 - Transactional themes and strict device/emulator/tool manifests that fail safely.
 - Built-in diagnostics, storage checks, save backups, performance controls, and test reports.
-- Reproducible Q90 builds pinned to a known MiyooCFW Buildroot revision.
+- Core Q90 sources pinned to immutable MiyooCFW Buildroot, kernel, U-Boot, and GMenu2X revisions.
 - GitHub Actions for validation, simulator builds, Q90 images, checksums, attestations, and releases.
 
 ## Downloading a release
@@ -54,8 +54,9 @@ A Linux host is required. Install the packages listed in
 ```
 
 Outputs are written to `dist/`. The build downloads the pinned MiyooCFW tree,
-injects ForgeShell as a Buildroot package, installs the Q90 adapter, and produces
-an image, checksum, upstream revision, and emulator manifest.
+rewrites its floating kernel, U-Boot, and GMenu2X references to the immutable
+revisions in `platforms/q90/build.env`, injects ForgeShell as a Buildroot package,
+and produces an image, checksum, upstream revision, and emulator manifest.
 
 ## Validate the project
 
