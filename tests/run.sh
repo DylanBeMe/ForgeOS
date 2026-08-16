@@ -17,8 +17,8 @@ bash -n build.sh forge-build install-overlay.sh tools/forge-build tools/run-simu
   tools/package-release.sh tools/verify-release.sh tools/ci/install-deps.sh tests/run.sh
 PYTHONPYCACHEPREFIX="$tmp/pycache" python3 -m py_compile \
   tools/generate-emulator-manifest.py tools/render-forgeshell-preview.py \
-  tools/build-library-index.py tools/record-compatibility.py tools/validate-platform.py \
-  tools/validate-theme.py tools/new-platform.py tools/generate-release-notes.py
+  tools/build-library-index.py tools/record-compatibility.py tools/compatibility-report.py tools/validate-platform.py \
+  tools/validate-theme.py tools/new-platform.py tools/generate-release-notes.py tools/platform-doctor.py
 for script in overlay/board/miyoo/boot/firstboot.custom.sh \
               overlay/board/miyoo/main/apps/forge-tools/*.sh \
               overlay/board/miyoo/main/forgeshell/*.sh \
@@ -71,6 +71,8 @@ read -r before_umask after_umask tmpfile_mode <<<"$tmpfile_check"
 [[ "$tmpfile_mode" == 600 ]] || fail "ForgeOS temporary report file is not private"
 cmp -s platforms/q90/platform.ini overlay/board/miyoo/main/forgeshell/device.ini || \
   fail "Q90 runtime device profile drifted from the canonical platform profile"
+cmp -s platforms/q90/tools.tsv overlay/board/miyoo/main/forgeshell/tools.tsv || \
+  fail "Q90 runtime tools manifest drifted from the canonical platform manifest"
 python3 tools/validate-theme.py >/dev/null
 cp overlay/board/miyoo/main/forgeshell/theme.ini "$tmp/bad-theme.ini"
 printf 'accent=#12345G\n' >> "$tmp/bad-theme.ini"
@@ -207,7 +209,7 @@ cp -a . "$tmp/package"
 printf 'host-object\n' > "$tmp/package/src/forgeshell/src/host-test.o"
 printf '#!/bin/sh\nexit 99\n' > "$tmp/package/src/forgeshell/src/forgeshell"
 chmod 755 "$tmp/package/src/forgeshell/src/forgeshell"
-WORKDIR="$tmp/build-work" DOWNLOAD_DIR="$tmp/downloads" \
+FORGE_REQUIRE_EMULATOR_BASELINE=0 WORKDIR="$tmp/build-work" DOWNLOAD_DIR="$tmp/downloads" \
   UPSTREAM_URL="file://$tmp/fake-upstream" UPSTREAM_REF="$fake_ref" JOBS=1 \
   "$tmp/package/build.sh" >/dev/null 2>&1
 [[ -f "$tmp/package/dist/forgeos-q90-$VERSION.img" ]]
@@ -227,6 +229,8 @@ grep -q '^Target: q90$' "$tmp/build-work/board/miyoo/main/forgeos-version.txt"
 cmp -s platforms/q90/platform.ini "$tmp/build-work/board/miyoo/main/forgeshell/device.ini" || \
   fail "image builder did not install the selected target profile"
 [[ -f "$tmp/build-work/board/miyoo/main/forgeshell/tools.tsv" ]]
+cmp -s platforms/q90/tools.tsv "$tmp/build-work/board/miyoo/main/forgeshell/tools.tsv" || \
+  fail "image builder did not install the selected target tools manifest"
 [[ -f "$tmp/build-work/package/miyoo/forgeshell/src/main.c" ]]
 [[ ! -e "$tmp/build-work/package/miyoo/forgeshell/src/host-test.o" ]]
 [[ ! -e "$tmp/build-work/package/miyoo/forgeshell/src/forgeshell" ]]
@@ -264,12 +268,12 @@ grep -Fq '"boot/firstboot.custom.sh",' "$tmp/build-work/board/miyoo/genimage-sdc
 touch "$tmp/build-work/output/keep-on-incremental-build"
 printf 'changed-host-object\n' >> "$tmp/package/src/forgeshell/src/host-test.o"
 printf '# changed host binary\n' >> "$tmp/package/src/forgeshell/src/forgeshell"
-WORKDIR="$tmp/build-work" DOWNLOAD_DIR="$tmp/downloads" \
+FORGE_REQUIRE_EMULATOR_BASELINE=0 WORKDIR="$tmp/build-work" DOWNLOAD_DIR="$tmp/downloads" \
   UPSTREAM_URL="file://$tmp/fake-upstream" UPSTREAM_REF="$fake_ref" JOBS=1 \
   "$tmp/package/build.sh" >/dev/null 2>&1
 [[ -e "$tmp/build-work/output/keep-on-incremental-build" ]]
 printf '\nchanged input\n' >> "$tmp/package/overlay/board/miyoo/main/forgeos-version.txt"
-WORKDIR="$tmp/build-work" DOWNLOAD_DIR="$tmp/downloads" \
+FORGE_REQUIRE_EMULATOR_BASELINE=0 WORKDIR="$tmp/build-work" DOWNLOAD_DIR="$tmp/downloads" \
   UPSTREAM_URL="file://$tmp/fake-upstream" UPSTREAM_REF="$fake_ref" JOBS=1 \
   "$tmp/package/build.sh" >/dev/null 2>&1
 [[ ! -e "$tmp/build-work/output/keep-on-incremental-build" ]]
@@ -518,8 +522,13 @@ ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 "$forge_test_bin"
 cc -std=c11 -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow \
   -Wstrict-prototypes -Wmissing-prototypes -Wconversion -Werror \
   -Itests/forgeshell/stubs -I"$forge_src" -fsyntax-only \
-  "$forge_src/main.c" "$forge_ui/ui.c" "$forge_platform/platform.c" \
+  "$forge_src/main.c" "$forge_ui/ui.c" "$forge_ui/state.c" "$forge_platform/platform.c" \
   "$forge_platform/tools.c"
+ui_state_test_bin="$tmp/forgeshell-ui-state-test"
+cc -std=c11 -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wstrict-prototypes \
+  -Wmissing-prototypes -Wconversion -Werror -I"$forge_src" \
+  tests/forgeshell/ui_state_test.c "$forge_ui/state.c" -o "$ui_state_test_bin"
+"$ui_state_test_bin"
 portability_test_bin="$tmp/forgeshell-platform-test"
 cc -std=c11 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer \
   -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wstrict-prototypes \
@@ -559,6 +568,8 @@ grep -Fqx "cpu_helper=$tmp/custom-tools/cpu-profile-control.sh" <<<"$q90_profile
 python3 tools/validate-platform.py
 ./forge-build q90 --check >/dev/null
 ./forge-build generic-linux --check >/dev/null
+./forge-build q90 --doctor >/dev/null
+./forge-build generic-linux --doctor >/dev/null
 python3 tools/new-platform.py test-device --name "Test Device's Adapter" \
   --resolution 480x272 --root "$tmp/scaffold"
 python3 tools/validate-platform.py --root "$tmp/scaffold" \
@@ -811,6 +822,7 @@ grep -q "^ForgeOS Q90 $VERSION$" overlay/board/miyoo/main/forgeos-version.txt
 grep -q 'FORGESHELL BETA' <(strings assets/forgeos-splash.bmp 2>/dev/null || true) || true
 [[ -s HARDWARE-TEST.md && -s USABILITY-TEST.md && -s RELEASE-CHECKLIST.md ]]
 [[ "$(head -n 1 docs/compatibility-matrix.csv)" == tested_at,firmware,device,system,game,emulator,bios,boot,gameplay,frame_pacing,audio,sram,save_states,exit_return,cpu_profile,frameskip,aspect,notes ]]
+python3 tools/compatibility-report.py docs/compatibility-matrix.csv >/dev/null
 
 # Required dimensions and formats.
 identify assets/forgeos-splash.png | grep -q '320x240'

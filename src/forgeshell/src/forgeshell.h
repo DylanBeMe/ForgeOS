@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <time.h>
 
-#define FS_VERSION "0.6.4-beta"
+#define FS_VERSION "0.6.5"
 #define FS_LOGICAL_W 320
 #define FS_LOGICAL_H 240
 #define FS_MAX_TOOLS 24
@@ -85,6 +85,25 @@ typedef struct {
     int key_start;
     int key_select;
     int key_power;
+    int joystick_enabled;
+    int joystick_device;
+    int joystick_axis_x;
+    int joystick_axis_y;
+    int joystick_axis_threshold;
+    int joystick_hat;
+    int joystick_button_up;
+    int joystick_button_down;
+    int joystick_button_left;
+    int joystick_button_right;
+    int joystick_button_accept;
+    int joystick_button_back;
+    int joystick_button_favorite;
+    int joystick_button_options;
+    int joystick_button_page_left;
+    int joystick_button_page_right;
+    int joystick_button_start;
+    int joystick_button_select;
+    int joystick_button_power;
     char label_accept[FS_MAX_INPUT_LABEL];
     char label_back[FS_MAX_INPUT_LABEL];
     char label_favorite[FS_MAX_INPUT_LABEL];
@@ -181,10 +200,12 @@ typedef struct {
 typedef struct {
     FsSystem systems[FS_MAX_SYSTEMS];
     size_t system_count;
-    FsGame games[FS_MAX_GAMES];
+    FsGame *games;
     size_t game_count;
+    size_t game_capacity;
     FsGame *staged_games;
     size_t staged_count;
+    size_t staged_capacity;
     uint16_t *scan_seen;
     DIR *scan_dir;
     char scan_dirs[FS_MAX_SCAN_DIRS][FS_MAX_PATH];
@@ -258,9 +279,13 @@ void fs_platform_defaults(FsPlatform *platform);
 int fs_platform_load(const char *path, FsPlatform *platform);
 int fs_platform_apply_override(FsPlatform *platform, const char *key, const char *value);
 FsAction fs_platform_translate_key(const FsPlatform *platform, int key);
+FsAction fs_platform_translate_joystick_button(const FsPlatform *platform, int button);
+FsAction fs_platform_translate_joystick_axis(const FsPlatform *platform, int axis, int value);
+FsAction fs_platform_translate_joystick_hat(const FsPlatform *platform, int value);
 const char *fs_platform_action_label(const FsPlatform *platform, FsAction action);
 int fs_platform_actions_share_key(const FsPlatform *platform, FsAction left, FsAction right);
 int fs_platform_has_capability(const FsPlatform *platform, const char *capability);
+int fs_platform_battery_percent(const FsPlatform *platform);
 int fs_platform_run_command(const char *command);
 int fs_platform_validate(const FsPlatform *platform, char *error, size_t error_size);
 int fs_platform_compute_viewport(int screen_width, int screen_height,
@@ -346,6 +371,9 @@ void fs_metadata_apply(const FsMetadata *metadata, FsLibrary *library);
 /* runner.c */
 int fs_runner_build_command(const FsSystem *system, const FsGame *game,
                             char *command, size_t command_size);
+int fs_runner_build_argv(const FsSystem *system, const FsGame *game,
+                         char **argv, size_t argv_capacity,
+                         char *storage, size_t storage_size);
 int fs_runner_launch(const FsSystem *system, const FsGame *game,
                      FsSession *session);
 int fs_runner_launch_override(const FsSystem *system, const FsGame *game,

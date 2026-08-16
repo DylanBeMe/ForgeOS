@@ -90,11 +90,40 @@ int main(void) {
     CHECK(fs_platform_translate_key(&platform, platform.key_accept) == FS_ACTION_ACCEPT);
     CHECK(strcmp(fs_platform_action_label(&platform, FS_ACTION_ACCEPT), "ENTER") == 0);
     CHECK(!fs_platform_actions_share_key(&platform, FS_ACTION_START, FS_ACTION_OPTIONS));
+    CHECK(fs_platform_apply_override(&platform, "joystick.enabled", "1") == 0);
+    CHECK(fs_platform_translate_joystick_button(&platform, 0) == FS_ACTION_ACCEPT);
+    CHECK(fs_platform_translate_joystick_button(&platform, 1) == FS_ACTION_BACK);
+    CHECK(fs_platform_translate_joystick_axis(&platform, 0, -20000) == FS_ACTION_LEFT);
+    CHECK(fs_platform_translate_joystick_axis(&platform, 1, 20000) == FS_ACTION_DOWN);
+    CHECK(fs_platform_translate_joystick_axis(&platform, 0, 1000) == FS_ACTION_NONE);
+    CHECK(fs_platform_translate_joystick_hat(&platform, SDL_HAT_UP) == FS_ACTION_UP);
+    CHECK(fs_platform_apply_override(&platform, "joystick.enabled", "0") == 0);
     CHECK(fs_platform_has_capability(&platform, "system_info") == 1);
     CHECK(fs_platform_has_capability(&platform, "cpu_profiles") == 0);
     CHECK(fs_platform_has_capability(NULL, "always") == 1);
     CHECK(fs_platform_has_capability(NULL, "system_info") == 0);
     CHECK(fs_platform_has_capability(&platform, NULL) == 0);
+    CHECK(setenv("FORGESHELL_FAKE_BATTERY", "72", 1) == 0);
+    CHECK(fs_platform_battery_percent(&platform) == 72);
+    CHECK(unsetenv("FORGESHELL_FAKE_BATTERY") == 0);
+    {
+        char power_root[FS_MAX_PATH];
+        char battery_dir[FS_MAX_PATH];
+        char capacity[FS_MAX_PATH];
+        CHECK(fs_path_join(power_root, sizeof(power_root), root, "power_supply") == 0);
+        CHECK(fs_path_join(battery_dir, sizeof(battery_dir), power_root, "BAT0") == 0);
+        CHECK(fs_mkdir_p(battery_dir, 0755) == 0);
+        CHECK(fs_path_join(capacity, sizeof(capacity), battery_dir, "capacity") == 0);
+        CHECK(write_text(capacity, "83\n") == 0);
+        platform.cap_battery = 1;
+        CHECK(setenv("FORGESHELL_POWER_SUPPLY_ROOT", power_root, 1) == 0);
+        CHECK(fs_platform_battery_percent(&platform) == 83);
+        CHECK(unsetenv("FORGESHELL_POWER_SUPPLY_ROOT") == 0);
+        platform.cap_battery = 0;
+        CHECK(unlink(capacity) == 0);
+        CHECK(rmdir(battery_dir) == 0);
+        CHECK(rmdir(power_root) == 0);
+    }
 
     CHECK(fs_platform_compute_viewport(480, 272, 320, 240,
                                        &x, &y, &width, &height) == 0);

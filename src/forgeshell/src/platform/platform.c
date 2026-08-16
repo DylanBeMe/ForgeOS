@@ -172,6 +172,25 @@ void fs_platform_defaults(FsPlatform *platform) {
     platform->key_start = SDLK_LALT;
     platform->key_select = SDLK_LCTRL;
     platform->key_power = SDLK_LSHIFT;
+    platform->joystick_enabled = 0;
+    platform->joystick_device = 0;
+    platform->joystick_axis_x = 0;
+    platform->joystick_axis_y = 1;
+    platform->joystick_axis_threshold = 16000;
+    platform->joystick_hat = 0;
+    platform->joystick_button_up = -1;
+    platform->joystick_button_down = -1;
+    platform->joystick_button_left = -1;
+    platform->joystick_button_right = -1;
+    platform->joystick_button_accept = 0;
+    platform->joystick_button_back = 1;
+    platform->joystick_button_favorite = 2;
+    platform->joystick_button_options = 3;
+    platform->joystick_button_page_left = 4;
+    platform->joystick_button_page_right = 5;
+    platform->joystick_button_start = 6;
+    platform->joystick_button_select = 7;
+    platform->joystick_button_power = 8;
     (void)fs_copy(platform->label_accept, sizeof(platform->label_accept), "ENTER");
     (void)fs_copy(platform->label_back, sizeof(platform->label_back), "ESC");
     (void)fs_copy(platform->label_favorite, sizeof(platform->label_favorite), "SPACE");
@@ -240,6 +259,25 @@ int fs_platform_apply_override(FsPlatform *p, const char *key, const char *value
     else if (fs_casecmp(key, "input.start") == 0) return platform_key_from_name(value, &p->key_start);
     else if (fs_casecmp(key, "input.select") == 0) return platform_key_from_name(value, &p->key_select);
     else if (fs_casecmp(key, "input.power") == 0) return platform_key_from_name(value, &p->key_power);
+    else if (fs_casecmp(key, "joystick.enabled") == 0) return platform_parse_bool(value, &p->joystick_enabled);
+    else if (fs_casecmp(key, "joystick.device") == 0) return platform_parse_int(value, 0, 15, &p->joystick_device);
+    else if (fs_casecmp(key, "joystick.axis_x") == 0) return platform_parse_int(value, -1, 31, &p->joystick_axis_x);
+    else if (fs_casecmp(key, "joystick.axis_y") == 0) return platform_parse_int(value, -1, 31, &p->joystick_axis_y);
+    else if (fs_casecmp(key, "joystick.axis_threshold") == 0) return platform_parse_int(value, 1000, 32767, &p->joystick_axis_threshold);
+    else if (fs_casecmp(key, "joystick.hat") == 0) return platform_parse_int(value, -1, 15, &p->joystick_hat);
+    else if (fs_casecmp(key, "joystick.up") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_up);
+    else if (fs_casecmp(key, "joystick.down") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_down);
+    else if (fs_casecmp(key, "joystick.left") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_left);
+    else if (fs_casecmp(key, "joystick.right") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_right);
+    else if (fs_casecmp(key, "joystick.accept") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_accept);
+    else if (fs_casecmp(key, "joystick.back") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_back);
+    else if (fs_casecmp(key, "joystick.favorite") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_favorite);
+    else if (fs_casecmp(key, "joystick.options") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_options);
+    else if (fs_casecmp(key, "joystick.page_left") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_page_left);
+    else if (fs_casecmp(key, "joystick.page_right") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_page_right);
+    else if (fs_casecmp(key, "joystick.start") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_start);
+    else if (fs_casecmp(key, "joystick.select") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_select);
+    else if (fs_casecmp(key, "joystick.power") == 0) return platform_parse_int(value, -1, 255, &p->joystick_button_power);
     else if (fs_casecmp(key, "labels.accept") == 0) return platform_set_string(p->label_accept, sizeof(p->label_accept), value);
     else if (fs_casecmp(key, "labels.back") == 0) return platform_set_string(p->label_back, sizeof(p->label_back), value);
     else if (fs_casecmp(key, "labels.favorite") == 0) return platform_set_string(p->label_favorite, sizeof(p->label_favorite), value);
@@ -263,7 +301,7 @@ int fs_platform_apply_override(FsPlatform *p, const char *key, const char *value
 static int platform_section_known(const char *section) {
     static const char *const sections[] = {
         "device", "ui", "storage", "launcher", "maintenance", "performance",
-        "power", "input", "labels", "capabilities"
+        "power", "input", "joystick", "labels", "capabilities"
     };
     size_t i;
     for (i = 0U; i < sizeof(sections) / sizeof(sections[0]); i++) {
@@ -320,7 +358,7 @@ int fs_platform_load(const char *path, FsPlatform *platform) {
     FILE *file;
     char line[1024];
     char section[48] = "device";
-    char seen_keys[64][112];
+    char seen_keys[96][112];
     size_t seen_count = 0U;
     if (platform == NULL) {
         errno = EINVAL;
@@ -476,6 +514,46 @@ FsAction fs_platform_translate_key(const FsPlatform *p, int key) {
     return FS_ACTION_NONE;
 }
 
+FsAction fs_platform_translate_joystick_button(const FsPlatform *p, int button) {
+    if (p == NULL || !p->joystick_enabled || button < 0) return FS_ACTION_NONE;
+    if (button == p->joystick_button_up) return FS_ACTION_UP;
+    if (button == p->joystick_button_down) return FS_ACTION_DOWN;
+    if (button == p->joystick_button_left) return FS_ACTION_LEFT;
+    if (button == p->joystick_button_right) return FS_ACTION_RIGHT;
+    if (button == p->joystick_button_accept) return FS_ACTION_ACCEPT;
+    if (button == p->joystick_button_back) return FS_ACTION_BACK;
+    if (button == p->joystick_button_favorite) return FS_ACTION_FAVORITE;
+    if (button == p->joystick_button_options) return FS_ACTION_OPTIONS;
+    if (button == p->joystick_button_page_left) return FS_ACTION_PAGE_LEFT;
+    if (button == p->joystick_button_page_right) return FS_ACTION_PAGE_RIGHT;
+    if (button == p->joystick_button_start) return FS_ACTION_START;
+    if (button == p->joystick_button_select) return FS_ACTION_SELECT;
+    if (button == p->joystick_button_power) return FS_ACTION_POWER;
+    return FS_ACTION_NONE;
+}
+
+FsAction fs_platform_translate_joystick_axis(const FsPlatform *p, int axis, int value) {
+    if (p == NULL || !p->joystick_enabled) return FS_ACTION_NONE;
+    if (axis == p->joystick_axis_x && p->joystick_axis_x >= 0) {
+        if (value <= -p->joystick_axis_threshold) return FS_ACTION_LEFT;
+        if (value >= p->joystick_axis_threshold) return FS_ACTION_RIGHT;
+    }
+    if (axis == p->joystick_axis_y && p->joystick_axis_y >= 0) {
+        if (value <= -p->joystick_axis_threshold) return FS_ACTION_UP;
+        if (value >= p->joystick_axis_threshold) return FS_ACTION_DOWN;
+    }
+    return FS_ACTION_NONE;
+}
+
+FsAction fs_platform_translate_joystick_hat(const FsPlatform *p, int value) {
+    if (p == NULL || !p->joystick_enabled || p->joystick_hat < 0) return FS_ACTION_NONE;
+    if ((value & SDL_HAT_UP) != 0) return FS_ACTION_UP;
+    if ((value & SDL_HAT_DOWN) != 0) return FS_ACTION_DOWN;
+    if ((value & SDL_HAT_LEFT) != 0) return FS_ACTION_LEFT;
+    if ((value & SDL_HAT_RIGHT) != 0) return FS_ACTION_RIGHT;
+    return FS_ACTION_NONE;
+}
+
 int fs_platform_has_capability(const FsPlatform *p, const char *capability) {
     if (capability == NULL || capability[0] == '\0') return 0;
     if (fs_casecmp(capability, "always") == 0) return 1;
@@ -488,6 +566,62 @@ int fs_platform_has_capability(const FsPlatform *p, const char *capability) {
     if (fs_casecmp(capability, "storage_health") == 0) return p->cap_storage_health;
     if (fs_casecmp(capability, "system_info") == 0) return p->cap_system_info;
     return 0;
+}
+
+static int platform_read_percent_file(const char *path) {
+    FILE *file;
+    char buffer[32];
+    char *end = NULL;
+    long value;
+    if (path == NULL) return -1;
+    file = fopen(path, "r");
+    if (file == NULL) return -1;
+    if (fgets(buffer, sizeof(buffer), file) == NULL) {
+        (void)fclose(file);
+        return -1;
+    }
+    (void)fclose(file);
+    errno = 0;
+    value = strtol(buffer, &end, 10);
+    if (errno != 0 || end == buffer) return -1;
+    while (*end != '\0' && isspace((unsigned char)*end)) end++;
+    if (*end != '\0' || value < 0 || value > 100) return -1;
+    return (int)value;
+}
+
+int fs_platform_battery_percent(const FsPlatform *p) {
+    const char *fake = getenv("FORGESHELL_FAKE_BATTERY");
+    const char *root = getenv("FORGESHELL_POWER_SUPPLY_ROOT");
+    DIR *dir;
+    struct dirent *entry;
+    char path[FS_MAX_PATH];
+    int best = -1;
+    if (fake != NULL && fake[0] != '\0') {
+        char *end = NULL;
+        long parsed;
+        errno = 0;
+        parsed = strtol(fake, &end, 10);
+        if (errno == 0 && end != fake && platform_tail_empty(end) && parsed >= 0 && parsed <= 100) {
+            return (int)parsed;
+        }
+    }
+    if (p == NULL || !p->cap_battery) return -1;
+    if (root == NULL || root[0] == '\0') root = "/sys/class/power_supply";
+    dir = opendir(root);
+    if (dir == NULL) return -1;
+    while ((entry = readdir(dir)) != NULL) {
+        int value;
+        if (entry->d_name[0] == '.') continue;
+        if (snprintf(path, sizeof(path), "%s/%s/capacity", root, entry->d_name) >=
+            (int)sizeof(path)) continue;
+        value = platform_read_percent_file(path);
+        if (value >= 0) {
+            best = value;
+            break;
+        }
+    }
+    (void)closedir(dir);
+    return best;
 }
 
 int fs_platform_run_command(const char *command) {
@@ -589,6 +723,22 @@ int fs_platform_validate(const FsPlatform *p, char *error, size_t error_size) {
     }
     for (i = 0U; i < sizeof(labels) / sizeof(labels[0]); i++) {
         if (labels[i] == NULL || labels[i][0] == '\0') PLATFORM_ERROR("an input label is empty");
+    }
+    if (p->joystick_enabled) {
+        int horizontal = p->joystick_hat >= 0 || p->joystick_axis_x >= 0 ||
+                         (p->joystick_button_left >= 0 && p->joystick_button_right >= 0);
+        int vertical = p->joystick_hat >= 0 || p->joystick_axis_y >= 0 ||
+                       (p->joystick_button_up >= 0 && p->joystick_button_down >= 0);
+        if (!horizontal || !vertical) PLATFORM_ERROR("joystick has no complete directional mapping");
+        if (p->joystick_button_accept < 0 || p->joystick_button_back < 0) {
+            PLATFORM_ERROR("joystick accept and back buttons are required when enabled");
+        }
+        if (p->joystick_button_accept == p->joystick_button_back) {
+            PLATFORM_ERROR("joystick accept and back share a button");
+        }
+        if (p->joystick_axis_x >= 0 && p->joystick_axis_x == p->joystick_axis_y) {
+            PLATFORM_ERROR("joystick horizontal and vertical axes must differ");
+        }
     }
     if (p->cap_safe_shutdown && (p->reboot_command[0] == '\0' || p->poweroff_command[0] == '\0')) {
         PLATFORM_ERROR("safe_shutdown requires reboot and poweroff commands");

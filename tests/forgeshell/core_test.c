@@ -99,7 +99,7 @@ int main(void) {
     int iterations = 0;
 
     CHECK(temp != NULL);
-    CHECK(sizeof(FsLibrary) < 2500000U);
+    CHECK(sizeof(FsLibrary) < 250000U);
     CHECK(sizeof(FsMetadata) < 1024U);
     CHECK(fs_parse_int("12   ", 3, 1, 20) == 12);
     CHECK(fs_path_join(path, sizeof(path), "", "relative/path") == 0);
@@ -107,7 +107,7 @@ int main(void) {
 
     CHECK(fs_path_join(config_path, sizeof(config_path), temp, "config.ini") == 0);
     CHECK(write_text(config_path,
-        "# retained comment\nunknown_key=keep\nscan_on_start=0\nscan_on_start=1\n", 0644) == 0);
+        "# retained comment\nscan_on_start=0\nscan_on_start=1\n", 0644) == 0);
     CHECK(fs_config_set(config_path, "scan_on_start", "0") == 0);
     {
         const char *keys[] = {"launcher_mode", "onboarding_complete"};
@@ -124,7 +124,6 @@ int main(void) {
     {
         char *text = NULL;
         CHECK(fs_read_text(config_path, &text, 4096U) == 0);
-        CHECK(strstr(text, "unknown_key=keep") != NULL);
         CHECK(strstr(text, "# retained comment") != NULL);
         CHECK(strstr(text, "scan_on_start=0") != NULL);
         CHECK(strstr(strstr(text, "scan_on_start=0") + 1, "scan_on_start=") == NULL);
@@ -132,10 +131,16 @@ int main(void) {
     }
     CHECK(write_text(config_path, "# no recognized settings\nunknown_only=value\n", 0644) == 0);
     CHECK(fs_config_load(config_path, &config) == -1 && errno == EINVAL);
+    CHECK(fs_config_set(config_path, "large_text", "1") < 0 && errno == EINVAL);
     CHECK(fs_config_restore_last_good(config_path) == 0);
     CHECK(fs_config_load(config_path, &config) == 0);
+    CHECK(fs_config_set(config_path, "unknown_key", "value") < 0 && errno == EINVAL);
     CHECK(write_text(config_path, "scan_on_start=maybe\n", 0644) == 0);
     CHECK(fs_config_load(config_path, &config) < 0 && errno == EINVAL);
+    CHECK(write_text(config_path, "scan_on_start=1\nthis is malformed\n", 0644) == 0);
+    CHECK(fs_config_load(config_path, &config) < 0 && errno == EINVAL);
+    CHECK(write_text(config_path, "scan_on_start=1\nscan_on_start=0\n", 0644) == 0);
+    CHECK(fs_config_load(config_path, &config) < 0 && errno == EEXIST);
     {
         FILE *long_config = fopen(config_path, "w");
         size_t long_index;
@@ -390,6 +395,34 @@ int main(void) {
     CHECK(fs_copy(runner_system.params, sizeof(runner_system.params),
         "--label \"[selFile]\" --path '[selFullPath]' --parts \"[selPath][selFile][selExt]\"") == 0);
     CHECK(fs_runner_build_command(&runner_system, &runner_game, command, sizeof(command)) == 0);
+    {
+        char *argv[16];
+        char argv_storage[4096];
+        CHECK(fs_runner_build_argv(&runner_system, &runner_game, argv, 16U,
+                                   argv_storage, sizeof(argv_storage)) == 0);
+        CHECK(strcmp(argv[0], runner_system.exec_path) == 0);
+        CHECK(strcmp(argv[1], "--label") == 0);
+        CHECK(strcmp(argv[2], "Game's Name") == 0);
+        CHECK(strcmp(argv[3], "--path") == 0);
+        CHECK(strcmp(argv[4], path) == 0);
+        CHECK(strcmp(argv[5], "--parts") == 0);
+        CHECK(strcmp(argv[6], path) == 0 && argv[7] == NULL);
+        CHECK(fs_copy(runner_system.params, sizeof(runner_system.params),
+                      "--rom [rom] > /tmp/output") == 0);
+        CHECK(fs_runner_build_argv(&runner_system, &runner_game, argv, 16U,
+                                   argv_storage, sizeof(argv_storage)) == 1);
+        CHECK(fs_copy(runner_system.params, sizeof(runner_system.params),
+                      "--label \"$HOME\"") == 0);
+        CHECK(fs_runner_build_argv(&runner_system, &runner_game, argv, 16U,
+                                   argv_storage, sizeof(argv_storage)) == 1);
+        CHECK(fs_copy(runner_system.params, sizeof(runner_system.params),
+                      "--label \"a\\q\"") == 0);
+        CHECK(fs_runner_build_argv(&runner_system, &runner_game, argv, 16U,
+                                   argv_storage, sizeof(argv_storage)) == 0);
+        CHECK(strcmp(argv[1], "--label") == 0 && strcmp(argv[2], "a\\q") == 0);
+        CHECK(fs_copy(runner_system.params, sizeof(runner_system.params),
+                      "--label \"[selFile]\" --path '[selFullPath]' --parts \"[selPath][selFile][selExt]\"") == 0);
+    }
     CHECK(fs_runner_launch(&runner_system, &runner_game, &session) == 0);
     CHECK(read_lines(frontend_path, lines, 16U, &line_count) == 0);
     CHECK(line_count == 1U && strcmp(lines[0], "gmenu2x") == 0);

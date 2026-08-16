@@ -1,6 +1,6 @@
 # Porting ForgeOS and ForgeShell
 
-ForgeShell 0.6.4 separates the reusable launcher from hardware integration. A
+ForgeShell 0.6.5 separates the reusable launcher from hardware integration. A
 new port should normally add a directory under `platforms/`; it should not edit
 library scanning, metadata, favorites, history, overrides, or page navigation.
 

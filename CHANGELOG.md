@@ -2,11 +2,33 @@
 
 ## Unreleased
 
+## 0.6.5 — 2026-08-16
+
+### Added
+
+- Controller backends can map SDL joystick buttons, axes, and hats directly to ForgeShell semantic actions while retaining keyboard mappings for the Q90.
+- ForgeShell exposes battery percentage through a portable status provider, including simulator injection and sysfs-backed hardware discovery.
+- `forge-build <target> --doctor` distinguishes a schema-valid platform profile from an adapter that is actually build-ready.
+- UI page/selection navigation has a pure state module with unit coverage, and Library left/right navigation can jump between title initials.
+- Q90 builds enforce a target-appropriate emulator baseline and compatibility results can be summarized or release-gated with `tools/compatibility-report.py`.
+
+### Changed
+
+- The game library now grows dynamically instead of reserving the complete 2,048-game array and scan staging slab at startup.
+- Ordinary emulator launches use structured argv execution; shell execution is retained only for command templates that genuinely require shell syntax.
+- Q90 maintenance tools have one canonical platform manifest that is installed into the image and checked byte-for-byte in tests.
+- New platform scaffolds start with optional/safety capabilities disabled until their runtime implementation exists.
+- Q90 emulator policy prefers the pinned MiyooCFW target-integrated compatibility snapshot rather than untested desktop/nightly core upgrades.
+
 ### Fixed
 
 - Full images now add the live `firstboot.custom.sh` hook to the BOOT FAT manifest instead of only the staging directory, so GPT repair actually runs before ROMS expansion.
 - Incomplete first-run setup now boots into ForgeShell onboarding even while GMenu2X remains the saved default launcher.
 - ROM storage detection no longer mistakes `/mnt/roms -> /roms` for a MAIN-local directory when the ROMS partition is missing.
+- User configuration now rejects malformed, unknown, duplicate, and invalid entries consistently with the documented recovery guarantees.
+- Simulator `--fake-battery` now feeds an actual ForgeShell battery status instead of setting an unused environment variable.
+- Platform profile duplicate-key tracking now has capacity for the optional joystick mapping section.
+- Q90 builds fail instead of silently producing an image if the expected emulator compatibility baseline disappears from the pinned Buildroot configuration.
 
 ## 0.6.4 — 2026-08-09
 

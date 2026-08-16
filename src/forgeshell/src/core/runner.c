@@ -104,6 +104,176 @@ static int fs_expand_params(const char *params,
     return 0;
 }
 
+static int fs_runner_path_parts(const FsGame *game,
+                                char *directory, size_t directory_size,
+                                char *filename, size_t filename_size,
+                                char *extension, size_t extension_size) {
+    const char *base;
+    const char *dot;
+    char *slash;
+    if (game == NULL || directory == NULL || filename == NULL || extension == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    base = strrchr(game->path, '/');
+    base = base == NULL ? game->path : base + 1;
+    if (fs_copy(directory, directory_size, game->path) != 0) return -1;
+    slash = strrchr(directory, '/');
+    if (slash == NULL) {
+        if (fs_copy(directory, directory_size, "./") != 0) return -1;
+    } else {
+        slash[1] = '\0';
+    }
+    dot = strrchr(base, '.');
+    if (dot == NULL || dot == base) {
+        return fs_copy(filename, filename_size, base) == 0 &&
+               fs_copy(extension, extension_size, "") == 0 ? 0 : -1;
+    }
+    {
+        size_t stem_length = (size_t)(dot - base);
+        if (stem_length >= filename_size || fs_copy(extension, extension_size, dot) != 0) {
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        memcpy(filename, base, stem_length);
+        filename[stem_length] = '\0';
+    }
+    return 0;
+}
+
+static int fs_runner_shell_meta(char value) {
+    return strchr("|&;<>()$`*?~#", value) != NULL;
+}
+
+static int fs_runner_argv_append(char *storage, size_t storage_size,
+                                 size_t *used, char value) {
+    if (storage == NULL || used == NULL || *used + 1U >= storage_size) {
+        errno = storage == NULL || used == NULL ? EINVAL : ENOSPC;
+        return -1;
+    }
+    storage[(*used)++] = value;
+    return 0;
+}
+
+int fs_runner_build_argv(const FsSystem *system, const FsGame *game,
+                         char **argv, size_t argv_capacity,
+                         char *storage, size_t storage_size) {
+    struct RawReplacement { const char *token; const char *replacement; } replacements[8];
+    char directory[FS_MAX_PATH];
+    char filename[FS_MAX_PATH];
+    char extension[FS_MAX_PATH];
+    size_t argc = 0U;
+    size_t used = 0U;
+    size_t i = 0U;
+    char quote = '\0';
+    int arg_started = 0;
+    if (system == NULL || game == NULL || argv == NULL || argv_capacity < 3U ||
+        storage == NULL || storage_size < 2U) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (fs_runner_path_parts(game, directory, sizeof(directory), filename, sizeof(filename),
+                             extension, sizeof(extension)) != 0) return -1;
+    argv[argc++] = (char *)system->exec_path;
+    if (system->params[0] == '\0') {
+        argv[argc++] = (char *)game->path;
+        argv[argc] = NULL;
+        return 0;
+    }
+    replacements[0] = (struct RawReplacement){ "[selFullPath]", game->path };
+    replacements[1] = (struct RawReplacement){ "[selPath]", directory };
+    replacements[2] = (struct RawReplacement){ "[selFile]", filename };
+    replacements[3] = (struct RawReplacement){ "[selExt]", extension };
+    replacements[4] = (struct RawReplacement){ "[rom]", game->path };
+    replacements[5] = (struct RawReplacement){ "[ROM]", game->path };
+    replacements[6] = (struct RawReplacement){ "%ROM%", game->path };
+    replacements[7] = (struct RawReplacement){ "%f", game->path };
+
+    while (system->params[i] != '\0') {
+        size_t r;
+        int matched = 0;
+        unsigned char ch = (unsigned char)system->params[i];
+        if (quote == '\0' && (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')) {
+            if (arg_started) {
+                if (fs_runner_argv_append(storage, storage_size, &used, '\0') != 0) return -1;
+                arg_started = 0;
+            }
+            i++;
+            continue;
+        }
+        if (quote != '\'' && ch == '\\' && system->params[i + 1U] != '\0') {
+            unsigned char next = (unsigned char)system->params[i + 1U];
+            if (!arg_started) {
+                if (argc + 1U >= argv_capacity) { errno = E2BIG; return -1; }
+                argv[argc++] = storage + used;
+                arg_started = 1;
+            }
+            if (next == '\n') {
+                i += 2U;
+                continue;
+            }
+            if (quote == '"' && strchr("$`\"\\", (char)next) == NULL) {
+                if (fs_runner_argv_append(storage, storage_size, &used, '\\') != 0) return -1;
+            }
+            if (fs_runner_argv_append(storage, storage_size, &used, (char)next) != 0) return -1;
+            i += 2U;
+            continue;
+        }
+        if (ch == '\'' && quote != '"') {
+            if (!arg_started) {
+                if (argc + 1U >= argv_capacity) { errno = E2BIG; return -1; }
+                argv[argc++] = storage + used;
+                arg_started = 1;
+            }
+            quote = quote == '\'' ? '\0' : '\'';
+            i++;
+            continue;
+        }
+        if (ch == '"' && quote != '\'') {
+            if (!arg_started) {
+                if (argc + 1U >= argv_capacity) { errno = E2BIG; return -1; }
+                argv[argc++] = storage + used;
+                arg_started = 1;
+            }
+            quote = quote == '"' ? '\0' : '"';
+            i++;
+            continue;
+        }
+        if ((quote == '\0' && fs_runner_shell_meta((char)ch)) ||
+            (quote == '"' && (ch == '$' || ch == '`'))) return 1;
+        for (r = 0U; r < sizeof(replacements) / sizeof(replacements[0]); r++) {
+            size_t token_length = strlen(replacements[r].token);
+            if (token_length > 0U && strncmp(system->params + i, replacements[r].token,
+                                              token_length) == 0) {
+                const char *text = replacements[r].replacement;
+                if (!arg_started) {
+                    if (argc + 1U >= argv_capacity) { errno = E2BIG; return -1; }
+                    argv[argc++] = storage + used;
+                    arg_started = 1;
+                }
+                while (*text != '\0') {
+                    if (fs_runner_argv_append(storage, storage_size, &used, *text++) != 0) return -1;
+                }
+                i += token_length;
+                matched = 1;
+                break;
+            }
+        }
+        if (matched) continue;
+        if (!arg_started) {
+            if (argc + 1U >= argv_capacity) { errno = E2BIG; return -1; }
+            argv[argc++] = storage + used;
+            arg_started = 1;
+        }
+        if (fs_runner_argv_append(storage, storage_size, &used, (char)ch) != 0) return -1;
+        i++;
+    }
+    if (quote != '\0') { errno = EINVAL; return -1; }
+    if (arg_started && fs_runner_argv_append(storage, storage_size, &used, '\0') != 0) return -1;
+    argv[argc] = NULL;
+    return 0;
+}
+
 int fs_runner_build_command(const FsSystem *system, const FsGame *game,
                             char *command, size_t command_size) {
     char quoted_exec[(FS_MAX_PATH * 4) + 3];
@@ -223,7 +393,10 @@ static int fs_runner_set_override_env(const FsGameOverride *override) {
 
 int fs_runner_launch_override(const FsSystem *system, const FsGame *game,
                               const FsGameOverride *override, FsSession *session) {
-    char command[4096];
+    char command[4096] = "";
+    char argv_storage[4096];
+    char *direct_argv[64];
+    int direct_status;
     char profile_state[FS_MAX_PATH] = "";
     pid_t child;
     int status = 0;
@@ -241,7 +414,11 @@ int fs_runner_launch_override(const FsSystem *system, const FsGame *game,
     (void)fs_copy(session->path, sizeof(session->path), game->path);
     (void)fs_copy(session->title, sizeof(session->title), game->title);
     (void)fs_copy(session->system_title, sizeof(session->system_title), system->title);
-    if (fs_runner_build_command(system, game, command, sizeof(command)) != 0) {
+    direct_status = fs_runner_build_argv(system, game, direct_argv,
+                                         sizeof(direct_argv) / sizeof(direct_argv[0]),
+                                         argv_storage, sizeof(argv_storage));
+    if (direct_status < 0 ||
+        (direct_status > 0 && fs_runner_build_command(system, game, command, sizeof(command)) != 0)) {
         session->exit_status = 127;
         return session->exit_status;
     }
@@ -290,7 +467,12 @@ int fs_runner_launch_override(const FsSystem *system, const FsGame *game,
         if (system->workdir[0] != '\0' && chdir(system->workdir) != 0) {
             _exit(126);
         }
-        execl("/bin/sh", "sh", "-c", command, (char *)NULL);
+        if (direct_status == 0) {
+            if (strchr(direct_argv[0], '/') != NULL) execv(direct_argv[0], direct_argv);
+            else execvp(direct_argv[0], direct_argv);
+        } else {
+            execl("/bin/sh", "sh", "-c", command, (char *)NULL);
+        }
         _exit(127);
     }
     for (;;) {

@@ -18,6 +18,10 @@
 
 - [ ] Pinned MiyooCFW Buildroot revision is intentional.
 - [ ] Clean full cross-build succeeds and the emulator manifest is complete.
+- [ ] Emulator manifest reports `Compatibility baseline: PASS`.
+- [ ] At least 20 representative physical-Q90 game tests are complete and
+      `tools/compatibility-report.py --enforce --minimum-games 20 --minimum-playable 90` passes.
+- [ ] Any emulator/core revision change has no documented compatibility or performance regression.
 - [ ] Full `HARDWARE-TEST.md` passes on at least one Q90 and spare card.
 - [ ] Boot, shutdown, audio, input, framebuffer, battery, brightness, performance,
       save persistence, and unexpected-power-loss tests pass.

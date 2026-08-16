@@ -10,7 +10,7 @@ override LDLIBS += $(shell $(SDL_CONFIG) --libs) -lSDL_ttf
 SOURCES = main.c \
           core/util.c core/config.c core/library.c core/session.c \
           core/overrides.c core/metadata.c core/runner.c \
-          platform/platform.c platform/tools.c ui/ui.c
+          platform/platform.c platform/tools.c ui/state.c ui/ui.c
 OBJECTS = $(SOURCES:.c=.o)
 
 .PHONY: all clean
@@ -24,3 +24,5 @@ forgeshell: $(OBJECTS)
 
 clean:
 	rm -f $(OBJECTS) forgeshell
+
+ui/ui.o ui/state.o: ui/state.h

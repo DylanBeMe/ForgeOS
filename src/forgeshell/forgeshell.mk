@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-FORGESHELL_VERSION = 0.6.4
+FORGESHELL_VERSION = 0.6.5
 FORGESHELL_SITE = $(TOPDIR)/package/miyoo/forgeshell/src
 FORGESHELL_SITE_METHOD = local
 FORGESHELL_DEPENDENCIES = sdl sdl_ttf

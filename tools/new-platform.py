@@ -58,6 +58,27 @@ start=LALT
 select=LCTRL
 power=LSHIFT
 
+[joystick]
+enabled=0
+device=0
+axis_x=0
+axis_y=1
+axis_threshold=16000
+hat=0
+up=-1
+down=-1
+left=-1
+right=-1
+accept=0
+back=1
+favorite=2
+options=3
+page_left=4
+page_right=5
+start=6
+select=7
+power=8
+
 [labels]
 accept=ENTER
 back=ESC
@@ -74,15 +95,12 @@ battery=0
 cpu_profiles=0
 brightness=0
 volume=0
-safe_shutdown=1
-storage_health=1
-system_info=1
+safe_shutdown=0
+storage_health=0
+system_info=0
 """
 
 TOOLS = """# id\ttitle\tmeta\tcommand\trequires
-system-info\tSystem Overview\tHardware\t${tool_root}/system-info.sh\tsystem_info
-storage-health\tStorage Check\tStorage\t${tool_root}/storage-health.sh\tstorage_health
-backup-saves\tSave Backup\tProtection\t${tool_root}/backup-saves.sh\talways
 """
 
 SYSTEMS = """# Portable ForgeShell emulator manifest.
@@ -137,8 +155,8 @@ def main() -> int:
     (destination / "build.env").write_text(BUILD_ENV.format(
         device_id=args.device_id, quoted_name=shlex.quote(args.name)), encoding="utf-8")
     (destination / "README.md").write_text(
-        f"# {args.name} adapter\n\nComplete the checklist in `docs/PORTING.md`, implement the build backend, "
-        "and run `python3 tools/validate-platform.py`.\n", encoding="utf-8")
+        f"# {args.name} adapter\n\nComplete the checklist in `docs/PORTING.md`, implement the build backend and runtime tools, "
+        f"then enable only capabilities that have working implementations. Run `./forge-build {args.device_id} --doctor` before building.\n", encoding="utf-8")
     print(destination)
     return 0
 

@@ -3,9 +3,16 @@
 1. Update `VERSION`, `CHANGELOG.md`, documentation, and screenshots.
 2. Run `./tests/run.sh` from a clean checkout.
 3. Build and hardware-test the Q90 image on a spare microSD card.
-4. Confirm every item in `RELEASE-CHECKLIST.md` that applies.
-5. Commit the release and push it through pull-request CI.
-6. Create and push an annotated tag matching `v$(cat VERSION)`.
+4. Record representative game results and require the compatibility gate:
+
+```sh
+python3 tools/compatibility-report.py docs/compatibility-matrix.csv \
+  --enforce --minimum-games 20 --minimum-playable 90
+```
+
+5. Confirm every item in `RELEASE-CHECKLIST.md` that applies.
+6. Commit the release and push it through pull-request CI.
+7. Create and push an annotated tag matching `v$(cat VERSION)`.
 
 ```sh
 git tag -a "v$(cat VERSION)" -m "ForgeOS $(cat VERSION)"

@@ -65,6 +65,7 @@ done
 cp -a "$ROOT_DIR/docs/PORTING.md" "$OUT_DIR/forgeos-$VERSION-porting-guide.md"
 cp -a "$ROOT_DIR/docs/PLATFORM-SCHEMA.md" "$OUT_DIR/forgeos-$VERSION-platform-schema.md"
 cp -a "$ROOT_DIR/docs/compatibility-matrix.csv" "$OUT_DIR/q90-forgeos-$VERSION-compatibility-matrix.csv"
+python3 "$ROOT_DIR/tools/compatibility-report.py" "$ROOT_DIR/docs/compatibility-matrix.csv" > "$OUT_DIR/q90-forgeos-$VERSION-compatibility-report.txt"
 cp -a "$ROOT_DIR/docs/library-index-template.csv" "$OUT_DIR/forgeos-$VERSION-library-index-template.csv"
 cp -a "$ROOT_DIR/docs/usability-test.csv" "$OUT_DIR/forgeos-$VERSION-usability-test.csv"
 cp -a "$ROOT_DIR/docs/performance-results.csv" "$OUT_DIR/q90-forgeos-$VERSION-performance-results.csv"

@@ -6,8 +6,17 @@ VERSION="$(<"$ROOT_DIR/VERSION")"
 FORGE_TARGET="${FORGE_TARGET:-q90}"
 PLATFORM_DIR="$ROOT_DIR/platforms/$FORGE_TARGET"
 [[ -r "$PLATFORM_DIR/build.env" ]] || { echo "Error: unknown build target: $FORGE_TARGET" >&2; exit 1; }
+forge_require_emulator_baseline_was_set=0
+forge_require_emulator_baseline_override=""
+if [[ -v FORGE_REQUIRE_EMULATOR_BASELINE ]]; then
+  forge_require_emulator_baseline_was_set=1
+  forge_require_emulator_baseline_override=$FORGE_REQUIRE_EMULATOR_BASELINE
+fi
 # shellcheck source=/dev/null
 source "$PLATFORM_DIR/build.env"
+if [[ $forge_require_emulator_baseline_was_set == 1 ]]; then
+  FORGE_REQUIRE_EMULATOR_BASELINE=$forge_require_emulator_baseline_override
+fi
 [[ "${FORGE_BUILD_BACKEND:-}" == miyoocfw-buildroot ]] || {
   echo "Error: build.sh only handles the miyoocfw-buildroot backend" >&2; exit 1;
 }
@@ -195,11 +204,16 @@ source_date_epoch=$(git -C "$WORKDIR" show -s --format=%ct HEAD)
 export SOURCE_DATE_EPOCH="$source_date_epoch" TZ=UTC LC_ALL=C
 
 manifest_tmp="$ROOT_DIR/build/forgeos-emulators.txt"
-python3 "$ROOT_DIR/tools/generate-emulator-manifest.py" \
-  --tree "$WORKDIR" \
-  --forge-version "$VERSION" \
-  --upstream-ref "$resolved_ref" \
+emulator_manifest_args=(
+  --tree "$WORKDIR"
+  --forge-version "$VERSION"
+  --upstream-ref "$resolved_ref"
   --output "$manifest_tmp"
+)
+if [[ "${FORGE_REQUIRE_EMULATOR_BASELINE:-0}" == 1 ]]; then
+  emulator_manifest_args+=(--require-baseline)
+fi
+python3 "$ROOT_DIR/tools/generate-emulator-manifest.py" "${emulator_manifest_args[@]}"
 
 # Inject ForgeShell as a normal Buildroot package without carrying an upstream fork.
 install -d "$WORKDIR/$FORGE_PACKAGE_DIR/forgeshell"
@@ -239,8 +253,9 @@ rsync -a --delete "$overlay_dir/main/gmenu2x/sections/ForgeOS/" \
   "$board_dir/main/gmenu2x/sections/ForgeOS/"
 rsync -a --delete "$overlay_dir/main/forgeshell/" \
   "$board_dir/main/forgeshell/"
-# Keep the runtime input labels/capabilities in lockstep with the selected target.
+# Keep canonical target manifests in lockstep with what is installed in the image.
 install -m 0644 "$PLATFORM_DIR/platform.ini" "$board_dir/main/forgeshell/device.ini"
+install -m 0644 "$PLATFORM_DIR/tools.tsv" "$board_dir/main/forgeshell/tools.tsv"
 # Zip extraction and host umasks can leave authored directories setgid/group-writable.
 # Normalize the modes that enter the firmware instead of relying on host metadata.
 for dir in \

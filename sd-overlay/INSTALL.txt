@@ -1,4 +1,4 @@
-ForgeOS Q90 SD overlay 0.6.4
+ForgeOS Q90 SD overlay 0.6.5
 
 This is an update-safe maintenance overlay for an existing MiyooCFW/ForgeOS
 card. It updates ForgeOS-owned artwork, maintenance tools, and GMenu2X entries.

@@ -61,6 +61,21 @@ static int fs_config_parse_int(const char *value, int minimum, int maximum, int 
     return 0;
 }
 
+
+static unsigned fs_config_key_bit(const char *key) {
+    static const char *const keys[] = {
+        "launcher_mode", "scan_on_start", "large_text", "high_contrast",
+        "scan_budget", "onboarding_complete", "safe_mode_next_boot",
+        "metadata_enabled", "show_recovery_hint"
+    };
+    size_t i;
+    if (key == NULL) return 0U;
+    for (i = 0U; i < sizeof(keys) / sizeof(keys[0]); i++) {
+        if (fs_casecmp(key, keys[i]) == 0) return 1U << i;
+    }
+    return 0U;
+}
+
 static int fs_config_apply(FsConfig *config, const char *key, const char *value) {
     if (config == NULL || key == NULL || value == NULL) {
         errno = EINVAL;
@@ -111,6 +126,7 @@ void fs_config_defaults(FsConfig *config) {
 int fs_config_load(const char *path, FsConfig *config) {
     FILE *file;
     char line[1024];
+    unsigned seen = 0U;
     int recognized = 0;
     if (path == NULL || config == NULL) {
         errno = EINVAL;
@@ -123,33 +139,53 @@ int fs_config_load(const char *path, FsConfig *config) {
     }
     while (fgets(line, sizeof(line), file) != NULL) {
         char *trimmed;
+        char *equals;
+        char *key;
+        char *value;
+        unsigned bit;
+        int applied;
         int line_status = fs_line_complete(file, line);
         if (line_status < 0) {
             (void)fclose(file);
             errno = EOVERFLOW;
             return -1;
         }
-        if (line_status == 0) {
-            continue;
-        }
+        if (line_status == 0) continue;
         trimmed = fs_trim(line);
-        char *equals;
-        if (trimmed[0] == '\0' || trimmed[0] == '#' || trimmed[0] == ';') {
-            continue;
-        }
+        if (trimmed[0] == '\0' || trimmed[0] == '#' || trimmed[0] == ';') continue;
         equals = strchr(trimmed, '=');
         if (equals == NULL) {
-            continue;
+            (void)fclose(file);
+            errno = EINVAL;
+            return -1;
         }
         *equals = '\0';
-        {
-            int applied = fs_config_apply(config, fs_trim(trimmed), fs_trim(equals + 1));
-            if (applied < 0) {
-                (void)fclose(file);
-                return -1;
-            }
-            recognized += applied;
+        key = fs_trim(trimmed);
+        value = fs_trim(equals + 1);
+        if (key[0] == '\0') {
+            (void)fclose(file);
+            errno = EINVAL;
+            return -1;
         }
+        bit = fs_config_key_bit(key);
+        if (bit == 0U) {
+            (void)fclose(file);
+            errno = EINVAL;
+            return -1;
+        }
+        if ((seen & bit) != 0U) {
+            (void)fclose(file);
+            errno = EEXIST;
+            return -1;
+        }
+        applied = fs_config_apply(config, key, value);
+        if (applied <= 0) {
+            (void)fclose(file);
+            if (applied == 0) errno = EINVAL;
+            return -1;
+        }
+        seen |= bit;
+        recognized++;
     }
     if (ferror(file)) {
         (void)fclose(file);
@@ -187,8 +223,14 @@ int fs_config_set_many(const char *path, const char *const *keys,
         return -1;
     }
     for (i = 0U; i < count; i++) {
+        FsConfig candidate;
         size_t j;
-        if (!fs_config_update_valid(keys[i], values[i])) {
+        if (!fs_config_update_valid(keys[i], values[i]) || fs_config_key_bit(keys[i]) == 0U) {
+            errno = EINVAL;
+            return -1;
+        }
+        fs_config_defaults(&candidate);
+        if (fs_config_apply(&candidate, keys[i], values[i]) <= 0) {
             errno = EINVAL;
             return -1;
         }
@@ -224,29 +266,60 @@ int fs_config_set_many(const char *path, const char *const *keys,
         return -1;
     }
     cursor = source;
-    while (cursor != NULL && *cursor != '\0') {
-        char *newline = strchr(cursor, '\n');
-        size_t line_len = newline == NULL ? strlen(cursor) : (size_t)(newline - cursor);
-        ssize_t match = -1;
-        char line[1024];
-        if (line_len < sizeof(line)) {
+    {
+        unsigned seen_source = 0U;
+        while (cursor != NULL && *cursor != '\0') {
+            char *newline = strchr(cursor, '\n');
+            size_t line_len = newline == NULL ? strlen(cursor) : (size_t)(newline - cursor);
+            ssize_t match = -1;
+            char line[1024];
             char *trimmed;
             char *equals;
+            char *existing_key = NULL;
+            char *existing_value = NULL;
+            unsigned existing_bit = 0U;
+            if (line_len >= sizeof(line)) {
+                errno = EOVERFLOW;
+                goto invalid_source;
+            }
             memcpy(line, cursor, line_len);
             line[line_len] = '\0';
             trimmed = fs_trim(line);
-            equals = strchr(trimmed, '=');
-            if (equals != NULL) {
+            if (trimmed[0] != '\0' && trimmed[0] != '#' && trimmed[0] != ';') {
+                FsConfig candidate;
+                equals = strchr(trimmed, '=');
+                if (equals == NULL) {
+                    errno = EINVAL;
+                    goto invalid_source;
+                }
                 *equals = '\0';
+                existing_key = fs_trim(trimmed);
+                existing_value = fs_trim(equals + 1);
+                existing_bit = fs_config_key_bit(existing_key);
+                if (existing_key[0] == '\0' || existing_bit == 0U) {
+                    errno = EINVAL;
+                    goto invalid_source;
+                }
                 for (i = 0U; i < count; i++) {
-                    if (fs_casecmp(fs_trim(trimmed), keys[i]) == 0) {
+                    if (fs_casecmp(existing_key, keys[i]) == 0) {
                         match = (ssize_t)i;
                         break;
                     }
                 }
+                if ((seen_source & existing_bit) != 0U && match < 0) {
+                    errno = EEXIST;
+                    goto invalid_source;
+                }
+                seen_source |= existing_bit;
+                if (match < 0) {
+                    fs_config_defaults(&candidate);
+                    if (fs_config_apply(&candidate, existing_key, existing_value) <= 0) {
+                        errno = EINVAL;
+                        goto invalid_source;
+                    }
+                }
             }
-        }
-        if (match >= 0) {
+            if (match >= 0) {
             size_t index = (size_t)match;
             if (!replaced[index]) {
                 int written = snprintf(output + used, capacity - used, "%s=%s\n",
@@ -261,7 +334,8 @@ int fs_config_set_many(const char *path, const char *const *keys,
             used += line_len;
             output[used++] = '\n';
         }
-        cursor = newline == NULL ? NULL : newline + 1;
+            cursor = newline == NULL ? NULL : newline + 1;
+        }
     }
     for (i = 0U; i < count; i++) {
         if (!replaced[i]) {
@@ -279,6 +353,12 @@ int fs_config_set_many(const char *path, const char *const *keys,
     }
     free(output);
     return 0;
+
+invalid_source:
+    free(source);
+    free(output);
+    free(replaced);
+    return -1;
 
 no_space:
     free(source);

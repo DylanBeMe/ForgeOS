@@ -1,8 +1,10 @@
 #define _POSIX_C_SOURCE 200809L
 #include "forgeshell.h"
+#include "state.h"
 
 #include <SDL/SDL.h>
 #include <SDL/SDL_ttf.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -12,16 +14,6 @@
 #include <time.h>
 #include <unistd.h>
 
-typedef enum {
-    PAGE_HOME = 0,
-    PAGE_LIBRARY,
-    PAGE_SEARCH,
-    PAGE_ACTIVITY,
-    PAGE_TOOLS,
-    PAGE_SETTINGS,
-    PAGE_POWER,
-    PAGE_COUNT
-} FsPage;
 
 typedef enum {
     LIBRARY_SYSTEMS = 0,
@@ -34,6 +26,7 @@ typedef enum {
 typedef struct {
     SDL_Surface *display;
     SDL_Surface *screen;
+    SDL_Joystick *joystick;
     TTF_Font *font_small;
     TTF_Font *font_body;
     TTF_Font *font_title;
@@ -76,6 +69,9 @@ typedef struct {
     int config_needs_lkg;
     int power_chord_down;
     int power_chord_used;
+    int joystick_axis_x_dir;
+    int joystick_axis_y_dir;
+    Uint8 joystick_hat_value;
 } FsUi;
 
 static const char *const page_titles[PAGE_COUNT] = {
@@ -225,8 +221,19 @@ static int ui_open_fonts(FsUi *ui) {
 
 static int ui_graphics_init(FsUi *ui) {
     Uint32 flags;
+    Uint32 init_flags;
     if (ui == NULL || ui->platform == NULL) return -1;
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) return -1;
+    init_flags = SDL_INIT_VIDEO | SDL_INIT_TIMER;
+    if (ui->platform->joystick_enabled) init_flags |= SDL_INIT_JOYSTICK;
+    if (SDL_Init(init_flags) != 0) return -1;
+    if (ui->platform->joystick_enabled &&
+        SDL_NumJoysticks() > ui->platform->joystick_device) {
+        ui->joystick = SDL_JoystickOpen(ui->platform->joystick_device);
+        if (ui->joystick == NULL) {
+            fprintf(stderr, "ForgeShell: joystick %d could not be opened; keyboard input remains available\n",
+                    ui->platform->joystick_device);
+        }
+    }
     if (TTF_Init() != 0) {
         SDL_Quit();
         return -1;
@@ -303,6 +310,10 @@ static void ui_graphics_quit(FsUi *ui) {
         ui->game_options_art = NULL;
     }
     ui_close_fonts(ui);
+    if (ui->joystick != NULL) {
+        SDL_JoystickClose(ui->joystick);
+        ui->joystick = NULL;
+    }
     if (ui->screen != NULL && ui->screen != ui->display) SDL_FreeSurface(ui->screen);
     ui->screen = NULL;
     ui->display = NULL;
@@ -431,6 +442,8 @@ static void ui_text_wrap(FsUi *ui, TTF_Font *font, const char *text,
 
 static void ui_draw_header(FsUi *ui, const char *subtitle) {
     char clock_text[16];
+    char battery_text[16];
+    int battery = fs_platform_battery_percent(ui == NULL ? NULL : ui->platform);
     time_t now = time(NULL);
     struct tm local;
     size_t i;
@@ -439,6 +452,11 @@ static void ui_draw_header(FsUi *ui, const char *subtitle) {
     if (ui->safe_mode) {
         ui_panel(ui, 205, 5, 66, 18, ui->theme.panel_alt, ui->theme.danger);
         ui_draw_text(ui, ui->font_small, "SAFE MODE", 212, 8, ui->theme.text);
+    }
+    if (battery >= 0 && !ui->safe_mode) {
+        (void)snprintf(battery_text, sizeof(battery_text), "%d%%", battery);
+        ui_draw_text(ui, ui->font_small, battery_text, 242, 8,
+                     battery <= 15 ? ui->theme.danger : ui->theme.muted);
     }
     if (localtime_r(&now, &local) != NULL) {
         (void)strftime(clock_text, sizeof(clock_text), "%H:%M", &local);
@@ -598,6 +616,51 @@ static ssize_t ui_filtered_game_at(FsUi *ui, size_t position) {
         }
     }
     return -1;
+}
+
+static int ui_game_initial(const FsGame *game) {
+    const unsigned char *text;
+    if (game == NULL) return 0;
+    text = (const unsigned char *)game->title;
+    while (*text != '\0' && !isalnum(*text)) text++;
+    return *text == '\0' ? '#' : toupper(*text);
+}
+
+static void ui_jump_library_initial(FsUi *ui, int delta) {
+    size_t count;
+    size_t current;
+    size_t step;
+    ssize_t current_game;
+    int initial;
+    if (ui == NULL || ui->library_view != LIBRARY_GAMES || delta == 0) return;
+    count = ui_filtered_game_count(ui);
+    if (count < 2U) return;
+    current = (size_t)fs_ui_state_clamp_selection(ui->selected[PAGE_LIBRARY], (int)count);
+    current_game = ui_filtered_game_at(ui, current);
+    if (current_game < 0) return;
+    initial = ui_game_initial(&ui->library->games[current_game]);
+    for (step = 1U; step < count; step++) {
+        size_t position;
+        ssize_t game_index;
+        if (delta > 0) position = (current + step) % count;
+        else position = (current + count - (step % count)) % count;
+        game_index = ui_filtered_game_at(ui, position);
+        if (game_index >= 0 && ui_game_initial(&ui->library->games[game_index]) != initial) {
+            if (delta < 0) {
+                int target = ui_game_initial(&ui->library->games[game_index]);
+                size_t first = position;
+                while (first > 0U) {
+                    ssize_t previous = ui_filtered_game_at(ui, first - 1U);
+                    if (previous < 0 || ui_game_initial(&ui->library->games[previous]) != target) break;
+                    first--;
+                }
+                position = first;
+            }
+            ui->selected[PAGE_LIBRARY] = (int)position;
+            ui->needs_redraw = 1;
+            return;
+        }
+    }
 }
 
 static void ui_filtered_game_window(FsUi *ui, size_t first,
@@ -1143,30 +1206,19 @@ static void ui_move_selection(FsUi *ui, int delta) {
         *selection = 0;
         return;
     }
-    *selection += delta;
-    if (*selection < 0) *selection = count - 1;
-    if (*selection >= count) *selection = 0;
+    *selection = fs_ui_state_wrap_selection(*selection, delta, count);
     ui->needs_redraw = 1;
 }
 
 static void ui_change_page(FsUi *ui, int delta) {
-    int next = (int)ui->page + delta;
-    if (next < 0) next = PAGE_COUNT - 1;
-    if (next >= PAGE_COUNT) next = 0;
-    ui->page = (FsPage)next;
+    ui->page = (FsPage)fs_ui_state_wrap_page((int)ui->page, delta, PAGE_COUNT);
     ui->needs_redraw = 1;
 }
 
 static void ui_clamp_current_selection(FsUi *ui) {
     int count = ui_page_item_count(ui);
     int *selection = &ui->selected[ui->page];
-    if (count <= 0) {
-        *selection = 0;
-    } else if (*selection >= count) {
-        *selection = count - 1;
-    } else if (*selection < 0) {
-        *selection = 0;
-    }
+    *selection = fs_ui_state_clamp_selection(*selection, count);
 }
 
 static void ui_apply_favorites(FsUi *ui) {
@@ -1853,6 +1905,12 @@ static void ui_handle_action(FsUi *ui, FsAction action) {
         ui_move_selection(ui, -1);
     } else if (action == FS_ACTION_DOWN) {
         ui_move_selection(ui, 1);
+    } else if (action == FS_ACTION_LEFT && ui->page == PAGE_LIBRARY &&
+               ui->library_view == LIBRARY_GAMES) {
+        ui_jump_library_initial(ui, -1);
+    } else if (action == FS_ACTION_RIGHT && ui->page == PAGE_LIBRARY &&
+               ui->library_view == LIBRARY_GAMES) {
+        ui_jump_library_initial(ui, 1);
     } else if (action == FS_ACTION_LEFT && ui->page == PAGE_SEARCH) {
         ui->search_char--;
         if (ui->search_char < 0) ui->search_char = (int)strlen(search_chars) - 1;
@@ -1889,10 +1947,8 @@ static void ui_handle_action(FsUi *ui, FsAction action) {
     }
 }
 
-static void ui_handle_key_event(FsUi *ui, const SDL_KeyboardEvent *key, int pressed) {
-    FsAction action;
-    if (ui == NULL || key == NULL) return;
-    action = fs_platform_translate_key(ui->platform, key->keysym.sym);
+static void ui_handle_bound_action(FsUi *ui, FsAction action, int pressed) {
+    if (ui == NULL || action == FS_ACTION_NONE) return;
     if (!ui->platform->cap_brightness) {
         if (pressed) ui_handle_action(ui, action);
         return;
@@ -1919,6 +1975,51 @@ static void ui_handle_key_event(FsUi *ui, const SDL_KeyboardEvent *key, int pres
         ui->power_chord_down = 0;
         ui->power_chord_used = 0;
     }
+}
+
+static void ui_handle_key_event(FsUi *ui, const SDL_KeyboardEvent *key, int pressed) {
+    if (ui == NULL || key == NULL) return;
+    ui_handle_bound_action(ui,
+        fs_platform_translate_key(ui->platform, key->keysym.sym), pressed);
+}
+
+static void ui_handle_joystick_button(FsUi *ui, const SDL_JoyButtonEvent *button,
+                                      int pressed) {
+    if (ui == NULL || button == NULL || !ui->platform->joystick_enabled ||
+        (int)button->which != ui->platform->joystick_device) return;
+    ui_handle_bound_action(ui,
+        fs_platform_translate_joystick_button(ui->platform, (int)button->button), pressed);
+}
+
+static void ui_handle_joystick_axis(FsUi *ui, const SDL_JoyAxisEvent *axis) {
+    FsAction action;
+    int direction = 0;
+    int *state = NULL;
+    if (ui == NULL || axis == NULL || !ui->platform->joystick_enabled ||
+        (int)axis->which != ui->platform->joystick_device) return;
+    if ((int)axis->axis == ui->platform->joystick_axis_x) state = &ui->joystick_axis_x_dir;
+    else if ((int)axis->axis == ui->platform->joystick_axis_y) state = &ui->joystick_axis_y_dir;
+    if (state == NULL) return;
+    action = fs_platform_translate_joystick_axis(ui->platform, (int)axis->axis,
+                                                 (int)axis->value);
+    if (action == FS_ACTION_LEFT || action == FS_ACTION_UP) direction = -1;
+    else if (action == FS_ACTION_RIGHT || action == FS_ACTION_DOWN) direction = 1;
+    if (*state == direction) return;
+    *state = direction;
+    if (direction != 0) ui_handle_bound_action(ui, action, 1);
+}
+
+static void ui_handle_joystick_hat(FsUi *ui, const SDL_JoyHatEvent *hat) {
+    Uint8 newly_pressed;
+    if (ui == NULL || hat == NULL || !ui->platform->joystick_enabled ||
+        (int)hat->which != ui->platform->joystick_device ||
+        (int)hat->hat != ui->platform->joystick_hat) return;
+    newly_pressed = (Uint8)(hat->value & (Uint8)~ui->joystick_hat_value);
+    ui->joystick_hat_value = hat->value;
+    if ((newly_pressed & SDL_HAT_UP) != 0U) ui_handle_bound_action(ui, FS_ACTION_UP, 1);
+    if ((newly_pressed & SDL_HAT_DOWN) != 0U) ui_handle_bound_action(ui, FS_ACTION_DOWN, 1);
+    if ((newly_pressed & SDL_HAT_LEFT) != 0U) ui_handle_bound_action(ui, FS_ACTION_LEFT, 1);
+    if ((newly_pressed & SDL_HAT_RIGHT) != 0U) ui_handle_bound_action(ui, FS_ACTION_RIGHT, 1);
 }
 
 int fs_ui_run(const FsPlatform *platform, FsToolCatalog *tools,
@@ -1995,6 +2096,14 @@ int fs_ui_run(const FsPlatform *platform, FsToolCatalog *tools,
                 ui_handle_key_event(&ui, &event.key, 1);
             } else if (event.type == SDL_KEYUP) {
                 ui_handle_key_event(&ui, &event.key, 0);
+            } else if (event.type == SDL_JOYBUTTONDOWN) {
+                ui_handle_joystick_button(&ui, &event.jbutton, 1);
+            } else if (event.type == SDL_JOYBUTTONUP) {
+                ui_handle_joystick_button(&ui, &event.jbutton, 0);
+            } else if (event.type == SDL_JOYAXISMOTION) {
+                ui_handle_joystick_axis(&ui, &event.jaxis);
+            } else if (event.type == SDL_JOYHATMOTION) {
+                ui_handle_joystick_hat(&ui, &event.jhat);
             } else if (event.type == SDL_USEREVENT) {
                 ui.needs_redraw = 1;
             }
@@ -2042,6 +2151,14 @@ int fs_ui_run(const FsPlatform *platform, FsToolCatalog *tools,
                 ui_handle_key_event(&ui, &event.key, 1);
             } else if (event.type == SDL_KEYUP) {
                 ui_handle_key_event(&ui, &event.key, 0);
+            } else if (event.type == SDL_JOYBUTTONDOWN) {
+                ui_handle_joystick_button(&ui, &event.jbutton, 1);
+            } else if (event.type == SDL_JOYBUTTONUP) {
+                ui_handle_joystick_button(&ui, &event.jbutton, 0);
+            } else if (event.type == SDL_JOYAXISMOTION) {
+                ui_handle_joystick_axis(&ui, &event.jaxis);
+            } else if (event.type == SDL_JOYHATMOTION) {
+                ui_handle_joystick_hat(&ui, &event.jhat);
             } else if (event.type == SDL_USEREVENT) {
                 ui.needs_redraw = 1;
             }

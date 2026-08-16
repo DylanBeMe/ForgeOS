@@ -272,7 +272,10 @@ int main(int argc, char **argv) {
     if (cli_source != NULL && fs_copy(platform.provider_source, sizeof(platform.provider_source), cli_source) != 0) return FS_EXIT_RECOVERY;
     if (cli_width > 0) { platform.screen_width = cli_width; platform.screen_height = cli_height; }
     if (cli_fullscreen >= 0) platform.fullscreen = cli_fullscreen;
-    if (cli_fake_battery >= 0) platform.fake_battery = cli_fake_battery;
+    if (cli_fake_battery >= 0) {
+        platform.fake_battery = cli_fake_battery;
+        platform.cap_battery = 1;
+    }
     if (platform.fake_battery >= 0) {
         char battery[8];
         int written = snprintf(battery, sizeof(battery), "%d", platform.fake_battery);

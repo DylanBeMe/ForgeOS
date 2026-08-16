@@ -20,6 +20,29 @@ LIBRETRO_SUPPORT = {
     "LIBRETRO_DATABASE",
 }
 
+COMPATIBILITY_BASELINE = {
+    "RETROARCH": "RetroArch frontend",
+    "LIBRETRO_FCEUMM": "NES / Famicom",
+    "LIBRETRO_GAMBATTE": "Game Boy / Game Boy Color",
+    "LIBRETRO_GPSP": "Game Boy Advance",
+    "LIBRETRO_PICODRIVE": "Mega Drive / Master System / Game Gear / Sega CD",
+    "LIBRETRO_SNES9X2002": "SNES performance core",
+    "LIBRETRO_SNES9X2005": "SNES compatibility alternative",
+    "LIBRETRO_PCSX_REARMED": "PlayStation",
+    "LIBRETRO_MEDNAFEN_PCE_FAST": "PC Engine / TurboGrafx-16",
+    "LIBRETRO_MAME2000": "Arcade low-overhead set",
+    "LIBRETRO_MAME2003_PLUS": "Arcade compatibility alternative",
+    "LIBRETRO_STELLA2014": "Atari 2600",
+    "LIBRETRO_MEDNAFEN_WSWAN": "WonderSwan / WonderSwan Color",
+}
+
+STANDALONE_FALLBACKS = {
+    "IPK_GAMBATTE": "Game Boy / Game Boy Color standalone fallback",
+    "IPK_GPSP": "Game Boy Advance standalone fallback",
+    "IPK_DRPOCKETSNES": "SNES standalone fallback",
+    "IPK_PCSX_REARMED": "PlayStation standalone fallback",
+}
+
 
 @dataclass(frozen=True)
 class PackageInfo:
@@ -150,6 +173,8 @@ def main() -> int:
     parser.add_argument("--forge-version", required=True)
     parser.add_argument("--upstream-ref", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--require-baseline", action="store_true",
+                        help="fail if the Q90 compatibility baseline is incomplete")
     args = parser.parse_args()
 
     tree = args.tree.resolve()
@@ -160,6 +185,12 @@ def main() -> int:
     symbols = selected_symbols(defconfig)
     index = parse_makefiles(tree)
     packages = [choose_package(tree, symbol, index) for symbol in symbols]
+    selected = set(symbols)
+    required_symbols = set(COMPATIBILITY_BASELINE) | set(STANDALONE_FALLBACKS)
+    missing_baseline = sorted(required_symbols - selected)
+    if args.require_baseline and missing_baseline:
+        missing_names = ", ".join(missing_baseline)
+        raise SystemExit(f"Q90 emulator compatibility baseline is incomplete: {missing_names}")
 
     frontends = [pkg for pkg in packages if pkg.kind == "frontend"]
     cores = [pkg for pkg in packages if pkg.kind == "core"]
@@ -173,8 +204,17 @@ def main() -> int:
         "Policy: newest Q90-integrated compatibility snapshot; no untested nightly binaries",
         f"Selected packages: {len(packages)}",
         f"Version metadata unresolved: {len(unresolved)}",
+        f"Compatibility baseline: {'PASS' if not missing_baseline else 'INCOMPLETE'}",
         "",
+        "PREFERRED COMPATIBILITY BASELINE",
     ]
+    for symbol, system in COMPATIBILITY_BASELINE.items():
+        lines.append(f"  {system:42} {normalize_name(symbol)}")
+    lines.append("")
+    lines.append("STANDALONE FALLBACKS")
+    for symbol, system in STANDALONE_FALLBACKS.items():
+        lines.append(f"  {system:42} {normalize_name(symbol)}")
+    lines.append("")
     lines.extend(section("FRONTEND", frontends))
     lines.append("")
     lines.extend(section("LIBRETRO CORES", cores))

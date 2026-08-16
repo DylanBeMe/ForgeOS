@@ -41,6 +41,12 @@ INPUT_ACTIONS = {
     "options", "page_left", "page_right", "start", "select", "power",
 }
 ALLOWED_KEY_ALIASES = {frozenset(("options", "start"))}
+
+JOYSTICK_KEYS = {
+    "enabled", "device", "axis_x", "axis_y", "axis_threshold", "hat",
+    "up", "down", "left", "right", "accept", "back", "favorite",
+    "options", "page_left", "page_right", "start", "select", "power",
+}
 VARIABLE_RE = re.compile(r"\$\{([a-z_][a-z0-9_]*)\}")
 KNOWN_VARIABLES = {"data_root", "rom_root", "home", "tool_root", "device_id"}
 KNOWN_KEY_NAMES = {
@@ -167,7 +173,7 @@ def validate(path: Path, project_root: Path) -> list[str]:
     except (OSError, configparser.Error) as exc:
         return [f"{path}: cannot parse profile: {exc}"]
 
-    allowed_sections = set(REQUIRED) | {"labels"}
+    allowed_sections = set(REQUIRED) | {"labels", "joystick"}
     unknown_sections = sorted(set(parser.sections()) - allowed_sections)
     if unknown_sections:
         errors.append(f"unknown sections: {', '.join(unknown_sections)}")
@@ -182,6 +188,15 @@ def validate(path: Path, project_root: Path) -> list[str]:
             errors.append(f"[{section}] missing: {', '.join(missing)}")
         if unknown:
             errors.append(f"[{section}] unknown keys: {', '.join(unknown)}")
+
+    if parser.has_section("joystick"):
+        present = set(parser["joystick"])
+        missing = sorted(JOYSTICK_KEYS - present)
+        unknown = sorted(present - JOYSTICK_KEYS)
+        if missing:
+            errors.append(f"[joystick] missing: {', '.join(missing)}")
+        if unknown:
+            errors.append(f"[joystick] unknown keys: {', '.join(unknown)}")
 
     if parser.has_section("labels"):
         present = set(parser["labels"])
@@ -258,6 +273,23 @@ def validate(path: Path, project_root: Path) -> list[str]:
                 errors.append(f"input.{action} shares {key!r} with input.{seen[key]}")
         else:
             seen[key] = action
+
+    if parser.has_section("joystick"):
+        joy = parser["joystick"]
+        bool_value(joy["enabled"], "joystick.enabled", errors)
+        ranges = {
+            "device": (0, 15), "axis_x": (-1, 31), "axis_y": (-1, 31),
+            "axis_threshold": (1000, 32767), "hat": (-1, 15),
+        }
+        for name in sorted(JOYSTICK_KEYS - {"enabled"}):
+            low, high = ranges.get(name, (-1, 255))
+            try:
+                value = int(joy[name].strip(), 10)
+            except ValueError:
+                errors.append(f"joystick.{name}: expected an integer")
+            else:
+                if not low <= value <= high:
+                    errors.append(f"joystick.{name}: expected {low}..{high}")
 
     capabilities: dict[str, bool] = {}
     for name, value in parser["capabilities"].items():

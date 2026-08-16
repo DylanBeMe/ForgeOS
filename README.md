@@ -26,6 +26,7 @@ GMenu2X remains installed as the fallback frontend.
 - Transactional themes and strict device/emulator/tool manifests that fail safely.
 - Built-in diagnostics, storage checks, save backups, performance controls, and test reports.
 - Core Q90 sources pinned to immutable MiyooCFW Buildroot, kernel, U-Boot, and GMenu2X revisions.
+- Target-aware emulator baseline checks plus measurable per-game compatibility reporting.
 - GitHub Actions for validation, simulator builds, Q90 images, checksums, attestations, and releases.
 
 ## Downloading a release
@@ -85,7 +86,9 @@ python3 tools/new-platform.py my-device \
 Device-specific code belongs under `platforms/<device>/`; shared library, UI,
 metadata, search, favorites, and recovery logic remain in ForgeShell. See
 [`docs/PORTING.md`](docs/PORTING.md) and
-[`docs/PLATFORM-SCHEMA.md`](docs/PLATFORM-SCHEMA.md).
+[`docs/PLATFORM-SCHEMA.md`](docs/PLATFORM-SCHEMA.md). Emulator upgrades and
+compatibility scoring are documented in
+[`docs/EMULATOR-COMPATIBILITY.md`](docs/EMULATOR-COMPATIBILITY.md).
 
 ## Repository layout
 

@@ -1,4 +1,4 @@
-# ForgeOS Q90 0.6.4 hardware acceptance plan
+# ForgeOS Q90 0.6.5 hardware acceptance plan
 
 Use a spare microSD card. Keep the original card unchanged and available for
 recovery. Record the card brand, size, Q90 hardware revision if known, battery

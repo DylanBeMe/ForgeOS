@@ -6,7 +6,7 @@ TARGET="${1:-}"
 
 usage() {
   cat <<USAGE
-Usage: ./forge-build <target> [--check]
+Usage: ./forge-build <target> [--check|--doctor]
 
 Targets:
   q90            Build the full MiyooCFW/Buildroot image
@@ -25,6 +25,14 @@ source "$PLATFORM_DIR/build.env"
 if [[ "${1:-}" == --check ]]; then
   echo "Target $TARGET is valid."
   exit 0
+fi
+if [[ "${1:-}" == --doctor ]]; then
+  exec python3 "$ROOT_DIR/tools/platform-doctor.py" "$TARGET"
+fi
+if [[ $# -gt 0 ]]; then
+  echo "Unknown option: $1" >&2
+  usage >&2
+  exit 2
 fi
 
 case "$FORGE_BUILD_BACKEND" in

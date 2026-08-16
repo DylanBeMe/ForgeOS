@@ -286,6 +286,31 @@ void fs_library_init(FsLibrary *library, const char *cache_path) {
     }
 }
 
+static int fs_game_array_reserve(FsGame **items, size_t *capacity, size_t needed) {
+    size_t next;
+    FsGame *resized;
+    if (items == NULL || capacity == NULL || needed > FS_MAX_GAMES) {
+        errno = needed > FS_MAX_GAMES ? ENOSPC : EINVAL;
+        return -1;
+    }
+    if (needed <= *capacity) return 0;
+    next = *capacity == 0U ? 64U : *capacity;
+    while (next < needed && next < FS_MAX_GAMES) {
+        size_t doubled = next * 2U;
+        if (doubled <= next || doubled > FS_MAX_GAMES) doubled = FS_MAX_GAMES;
+        next = doubled;
+    }
+    if (next < needed) {
+        errno = ENOSPC;
+        return -1;
+    }
+    resized = (FsGame *)realloc(*items, next * sizeof(*resized));
+    if (resized == NULL) return -1;
+    *items = resized;
+    *capacity = next;
+    return 0;
+}
+
 static void fs_scan_close_dir(FsLibrary *library) {
     if (library != NULL && library->scan_dir != NULL) {
         (void)closedir(library->scan_dir);
@@ -293,14 +318,24 @@ static void fs_scan_close_dir(FsLibrary *library) {
     }
 }
 
-void fs_library_close(FsLibrary *library) {
+static void fs_scan_reset(FsLibrary *library) {
     if (library == NULL) return;
     fs_scan_close_dir(library);
     free(library->staged_games);
     library->staged_games = NULL;
+    library->staged_count = 0U;
+    library->staged_capacity = 0U;
     free(library->scan_seen);
     library->scan_seen = NULL;
-    library->staged_count = 0U;
+}
+
+void fs_library_close(FsLibrary *library) {
+    if (library == NULL) return;
+    fs_scan_reset(library);
+    free(library->games);
+    library->games = NULL;
+    library->game_count = 0U;
+    library->game_capacity = 0U;
 }
 
 static int fs_system_source_exists(const FsLibrary *library, const char *path) {
@@ -675,6 +710,13 @@ int fs_library_load_cache(FsLibrary *library) {
         if (library->game_count >= FS_MAX_GAMES) {
             continue;
         }
+        if (fs_game_array_reserve(&library->games, &library->game_capacity,
+                                  library->game_count + 1U) != 0) {
+            (void)fclose(file);
+            library->game_count = 0U;
+            library->cache_load_failed = 1;
+            return -1;
+        }
         game.system_index = index;
         game.size = (off_t)size;
         game.mtime = (time_t)mtime;
@@ -805,13 +847,14 @@ int fs_library_start_scan(FsLibrary *library) {
         errno = EINVAL;
         return -1;
     }
-    fs_library_close(library);
+    fs_scan_reset(library);
     library->scan_start_failed = 0;
-    library->staged_games = (FsGame *)calloc(FS_MAX_GAMES, sizeof(FsGame));
     library->scan_seen = (uint16_t *)calloc(FS_SCAN_SEEN_SLOTS, sizeof(uint16_t));
-    if (library->staged_games == NULL || library->scan_seen == NULL) {
+    if (library->scan_seen == NULL ||
+        fs_game_array_reserve(&library->staged_games, &library->staged_capacity, 64U) != 0) {
         free(library->staged_games);
         library->staged_games = NULL;
+        library->staged_capacity = 0U;
         free(library->scan_seen);
         library->scan_seen = NULL;
         library->scan_start_failed = 1;
@@ -841,6 +884,7 @@ int fs_library_start_scan(FsLibrary *library) {
     if (!library->scan_active) {
         free(library->staged_games);
         library->staged_games = NULL;
+        library->staged_capacity = 0U;
         free(library->scan_seen);
         library->scan_seen = NULL;
     }
@@ -870,9 +914,11 @@ static void fs_scan_finish(FsLibrary *library) {
     qsort(library->staged_games, library->staged_count,
           sizeof(library->staged_games[0]), fs_game_compare);
     count = library->staged_count;
-    memcpy(library->games, library->staged_games, count * sizeof(library->games[0]));
-    free(library->staged_games);
+    free(library->games);
+    library->games = library->staged_games;
+    library->game_capacity = library->staged_capacity;
     library->staged_games = NULL;
+    library->staged_capacity = 0U;
     free(library->scan_seen);
     library->scan_seen = NULL;
     library->staged_count = 0U;
@@ -972,6 +1018,11 @@ int fs_library_scan_step(FsLibrary *library, size_t budget) {
                 continue;
             }
             if (library->staged_count >= FS_MAX_GAMES) {
+                library->scan_truncated = 1;
+                continue;
+            }
+            if (fs_game_array_reserve(&library->staged_games, &library->staged_capacity,
+                                      library->staged_count + 1U) != 0) {
                 library->scan_truncated = 1;
                 continue;
             }

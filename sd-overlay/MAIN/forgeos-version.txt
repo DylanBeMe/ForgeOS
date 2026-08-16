@@ -1,3 +1,3 @@
-ForgeOS Q90 0.6.4
+ForgeOS Q90 0.6.5
 Install mode: update-safe SD overlay
 Emulator binaries: unchanged; a full-image build is required to upgrade them

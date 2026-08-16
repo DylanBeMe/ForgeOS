@@ -10,6 +10,8 @@ HEADER = ["tested_at", "firmware", "device", "system", "game", "emulator",
           "bios", "boot", "gameplay", "frame_pacing", "audio", "sram",
           "save_states", "exit_return", "cpu_profile", "frameskip", "aspect",
           "notes"]
+OUTCOME_FIELDS = {"boot", "gameplay", "frame_pacing", "audio", "sram", "save_states", "exit_return"}
+VALID_OUTCOMES = {"pass", "minor", "fail", "na"}
 
 
 def main() -> int:
@@ -18,6 +20,12 @@ def main() -> int:
     for field in HEADER[1:]:
         parser.add_argument(f"--{field.replace('_', '-')}", required=field in {"system", "game", "emulator"})
     args = parser.parse_args()
+    for field in OUTCOME_FIELDS:
+        value = getattr(args, field)
+        if value and value.strip().lower() not in VALID_OUTCOMES:
+            parser.error(f"--{field.replace('_', '-')} must be pass, minor, fail, or na")
+        if value:
+            setattr(args, field, value.strip().lower())
     values = vars(args)
     matrix: Path = values.pop("matrix")
     matrix.parent.mkdir(parents=True, exist_ok=True)
