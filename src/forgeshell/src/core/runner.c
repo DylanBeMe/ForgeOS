@@ -158,10 +158,11 @@ static int fs_runner_argv_append(char *storage, size_t storage_size,
 int fs_runner_build_argv(const FsSystem *system, const FsGame *game,
                          char **argv, size_t argv_capacity,
                          char *storage, size_t storage_size) {
-    struct RawReplacement { const char *token; const char *replacement; } replacements[8];
+    struct RawReplacement { const char *token; const char *replacement; } replacements[9];
     char directory[FS_MAX_PATH];
     char filename[FS_MAX_PATH];
     char extension[FS_MAX_PATH];
+    const char *base;
     size_t argc = 0U;
     size_t used = 0U;
     size_t i = 0U;
@@ -180,14 +181,17 @@ int fs_runner_build_argv(const FsSystem *system, const FsGame *game,
         argv[argc] = NULL;
         return 0;
     }
+    base = strrchr(game->path, '/');
+    base = base == NULL ? game->path : base + 1;
     replacements[0] = (struct RawReplacement){ "[selFullPath]", game->path };
     replacements[1] = (struct RawReplacement){ "[selPath]", directory };
     replacements[2] = (struct RawReplacement){ "[selFile]", filename };
-    replacements[3] = (struct RawReplacement){ "[selExt]", extension };
-    replacements[4] = (struct RawReplacement){ "[rom]", game->path };
-    replacements[5] = (struct RawReplacement){ "[ROM]", game->path };
-    replacements[6] = (struct RawReplacement){ "%ROM%", game->path };
-    replacements[7] = (struct RawReplacement){ "%f", game->path };
+    replacements[3] = (struct RawReplacement){ "[selFileFull]", base };
+    replacements[4] = (struct RawReplacement){ "[selExt]", extension };
+    replacements[5] = (struct RawReplacement){ "[rom]", game->path };
+    replacements[6] = (struct RawReplacement){ "[ROM]", game->path };
+    replacements[7] = (struct RawReplacement){ "%ROM%", game->path };
+    replacements[8] = (struct RawReplacement){ "%f", game->path };
 
     while (system->params[i] != '\0') {
         size_t r;
@@ -280,6 +284,7 @@ int fs_runner_build_command(const FsSystem *system, const FsGame *game,
     char quoted_full[(FS_MAX_PATH * 4) + 3];
     char quoted_dir[(FS_MAX_PATH * 4) + 3];
     char quoted_file[(FS_MAX_PATH * 4) + 3];
+    char quoted_base[(FS_MAX_PATH * 4) + 3];
     char quoted_ext[(FS_MAX_PATH * 4) + 3];
     char directory[FS_MAX_PATH];
     char filename[FS_MAX_PATH];
@@ -288,7 +293,7 @@ int fs_runner_build_command(const FsSystem *system, const FsGame *game,
     const char *base;
     const char *dot;
     char *slash;
-    FsParamReplacement replacements[8];
+    FsParamReplacement replacements[9];
     int written;
     if (system == NULL || game == NULL || command == NULL || command_size == 0U) {
         errno = EINVAL;
@@ -324,17 +329,19 @@ int fs_runner_build_command(const FsSystem *system, const FsGame *game,
         fs_shell_quote(game->path, quoted_full, sizeof(quoted_full)) != 0 ||
         fs_shell_quote(directory, quoted_dir, sizeof(quoted_dir)) != 0 ||
         fs_shell_quote(filename, quoted_file, sizeof(quoted_file)) != 0 ||
+        fs_shell_quote(base, quoted_base, sizeof(quoted_base)) != 0 ||
         fs_shell_quote(extension, quoted_ext, sizeof(quoted_ext)) != 0) {
         return -1;
     }
     replacements[0] = (FsParamReplacement){ "[selFullPath]", quoted_full };
     replacements[1] = (FsParamReplacement){ "[selPath]", quoted_dir };
     replacements[2] = (FsParamReplacement){ "[selFile]", quoted_file };
-    replacements[3] = (FsParamReplacement){ "[selExt]", quoted_ext };
-    replacements[4] = (FsParamReplacement){ "[rom]", quoted_full };
-    replacements[5] = (FsParamReplacement){ "[ROM]", quoted_full };
-    replacements[6] = (FsParamReplacement){ "%ROM%", quoted_full };
-    replacements[7] = (FsParamReplacement){ "%f", quoted_full };
+    replacements[3] = (FsParamReplacement){ "[selFileFull]", quoted_base };
+    replacements[4] = (FsParamReplacement){ "[selExt]", quoted_ext };
+    replacements[5] = (FsParamReplacement){ "[rom]", quoted_full };
+    replacements[6] = (FsParamReplacement){ "[ROM]", quoted_full };
+    replacements[7] = (FsParamReplacement){ "%ROM%", quoted_full };
+    replacements[8] = (FsParamReplacement){ "%f", quoted_full };
     if (fs_expand_params(system->params, replacements,
                          sizeof(replacements) / sizeof(replacements[0]),
                          expanded, sizeof(expanded)) != 0) {

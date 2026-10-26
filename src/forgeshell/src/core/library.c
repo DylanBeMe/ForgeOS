@@ -38,6 +38,18 @@ static void fs_strip_quotes(char *value) {
     }
 }
 
+static int fs_link_params_name_rom(const char *params) {
+    static const char *const tokens[] = {
+        "[selFullPath]", "[selPath]", "[selFile]", "[selFileFull]", "[selExt]",
+        "%f", "[rom]", "[ROM]", "%ROM%"
+    };
+    size_t i;
+    for (i = 0U; i < sizeof(tokens) / sizeof(tokens[0]); i++) {
+        if (strstr(params, tokens[i]) != NULL) return 1;
+    }
+    return 0;
+}
+
 static uint32_t fs_path_hash(const char *text) {
     uint32_t hash = 2166136261U;
     const unsigned char *cursor = (const unsigned char *)text;
@@ -215,6 +227,15 @@ static int fs_parse_link(const char *path, FsSystem *system) {
     }
     if (system->params[0] == '\0') {
         (void)fs_copy(system->params, sizeof(system->params), "[rom]");
+    } else if (!fs_link_params_name_rom(system->params)) {
+        /* GMenu2X appends the selected file when params names no placeholder;
+         * MiyooCFW RetroArch core links ("-vL core.so ...") rely on this. */
+        size_t length = strlen(system->params);
+        if (length + sizeof(" [rom]") > sizeof(system->params)) {
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        memcpy(system->params + length, " [rom]", sizeof(" [rom]"));
     }
     return 0;
 

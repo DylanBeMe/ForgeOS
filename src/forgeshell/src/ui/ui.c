@@ -1256,6 +1256,8 @@ static int ui_launch_index(FsUi *ui, ssize_t game_index) {
     }
     ui_graphics_quit(ui);
     result = fs_runner_launch_override(system, game, override, &session);
+    fprintf(stderr, "ForgeShell: game exited with status %d: %s %s [%s]\n",
+            result, system->exec_path, system->params, game->path);
     session_saved = fs_sessions_append(ui->sessions, &session) == 0;
     if (ui_graphics_init(ui) != 0) {
         ui->running = 0;
@@ -1333,15 +1335,33 @@ static void ui_adjust_brightness(FsUi *ui, int direction) {
     }
 }
 
+static void ui_hold_console(int status, long long elapsed_ms) {
+    char message[160];
+    int tty = ui_open_console();
+    int length;
+    if (tty < 0) return;
+    length = snprintf(message, sizeof(message),
+                      "\r\n\r\nForgeShell: tool exited with status %d after %lld ms.\r\n"
+                      "Returning in 5 seconds...\r\n", status, elapsed_ms);
+    if (length > 0 && (size_t)length < sizeof(message)) {
+        (void)write(tty, message, (size_t)length);
+    }
+    (void)close(tty);
+    (void)sleep(5U);
+}
+
 static int ui_run_tool(FsUi *ui, const FsToolEntry *tool) {
     pid_t child;
     int status = 0;
     int result = -1;
+    long long started_ms;
+    long long elapsed_ms;
     if (tool == NULL || tool->command[0] == '\0') {
         ui_toast(ui, "This maintenance tool is not available");
         return -1;
     }
     ui_graphics_quit(ui);
+    started_ms = fs_monotonic_milliseconds();
     child = fork();
     if (child == 0) {
         ui_attach_console();
@@ -1360,6 +1380,15 @@ static int ui_run_tool(FsUi *ui, const FsToolEntry *tool) {
                 result = 128 + WTERMSIG(status);
             }
         }
+    }
+    elapsed_ms = fs_monotonic_milliseconds() - started_ms;
+    fprintf(stderr, "ForgeShell: tool exited with status %d after %lld ms (TERM=%s): %s\n",
+            result, elapsed_ms, getenv("TERM") != NULL ? getenv("TERM") : "unset",
+            tool->command);
+    if (child > 0 && elapsed_ms < 1000LL) {
+        /* Every tool waits for input, so an instant exit is a failure whose
+         * console output would otherwise be erased by the redraw. */
+        ui_hold_console(result, elapsed_ms);
     }
     if (ui_graphics_init(ui) != 0) {
         ui->running = 0;

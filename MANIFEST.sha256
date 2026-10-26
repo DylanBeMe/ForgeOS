@@ -10,7 +10,7 @@ a72c9949cac1de68c353e4a4c380bb3a9143da6a325a8e620244cc54e2dba88a  ./.github/work
 39be3d4b2316234b8ba297a2fed837442362a40cfa455eed8f063c3d38107766  ./.github/workflows/q90-image.yml
 d72aa29e910139b1baabff393702cd4a9497255ee4ee2d942f23af7e436a5c2e  ./.github/workflows/release.yml
 1a5d225d38ea53eff76c611f7e1629db9056208a3f9a1b2816c4bd013ab884e8  ./.gitignore
-a0194ed67f47ecdf4c38e7a2dd619966b51833c81d65cda0c6c6b78d84722b21  ./CHANGELOG.md
+89ddd51abc3053496c33f1796bff964ead4d52c6b8a0d8f94bf1324ea352f95c  ./CHANGELOG.md
 667b7c20458d949438a9ed8406db4058c5416046d0fec81650dfe12d42111ab5  ./CODE_OF_CONDUCT.md
 596ef168c4c57981aed62e0cbd4c918a108219cb8e0c74cb3fcc6eead0ddc852  ./CONTRIBUTING.md
 02da2a261ee58e932b5c99797477a7c228363bcb8d28b9610d9253d22a925a11  ./FORGEOS-NEXT.md
@@ -150,10 +150,10 @@ a0d058c05d7bbaa3dbb69fee2420ab4a95a928c5ce3d3d3a7ebad54cce607a74  ./sd-overlay/M
 d4f79455de0ef3fbc8d5f87839e5e0f1dee0182418e772dcb017d6a64f8eca0a  ./src/forgeshell/src/LICENSE
 60b15d4821deab4c334b6671790856fdafabc0fe01e475c6a37a6560df0c2527  ./src/forgeshell/src/Makefile
 e744508a0d4d6e03bf1d6ebb33201db9fe359e5a06f53895fa461b72bfb1893f  ./src/forgeshell/src/core/config.c
-58a8da08989fd93f9f4839dc48ab59ce2580589d4e7f736facdab4bb8f45f564  ./src/forgeshell/src/core/library.c
+d46d34064386fa9e70b35bfd38633c54704c258f7bff08b68aa67ed5a47dd0a1  ./src/forgeshell/src/core/library.c
 93f05a968dc208e9b2804b89d47f54b60b2244750b9436cf4292354a04f0c1eb  ./src/forgeshell/src/core/metadata.c
 b7fc4a9d7f8ede06df953221228fecc9f61e38cc2aae22ca2642cd12e4c1d33f  ./src/forgeshell/src/core/overrides.c
-eb68946eea7c6d99c6e1a6cc6eaabfbb5e1689dd81e6283eb3739338d320869f  ./src/forgeshell/src/core/runner.c
+f999c83eae5ffadad0704ed34ec179e3953370607e39ed9190115391a000b27d  ./src/forgeshell/src/core/runner.c
 339f5f58ba9104bb579b2218651b5f3a75e82b418899e42f60ee1eb7cfd22669  ./src/forgeshell/src/core/session.c
 7d8e51f142c7af130487100735b7560a2af5fef5e5493d00cd814bcba28d6738  ./src/forgeshell/src/core/util.c
 16570c7441455eac2c2c2599a9bf24f0894fff1f37fad08949ed0a74594b3792  ./src/forgeshell/src/forgeshell.h
@@ -162,8 +162,8 @@ d2219b9b5b301c059ae8e29b1a059eb3252d3410cf41eae81174850a30bcfaf9  ./src/forgeshe
 c932e84a17d12b0e88dc89a5bcd674ffc324c1d3c01ee03de50f4ec5b51cbfed  ./src/forgeshell/src/platform/tools.c
 f4a2c063ec01c75809df98bdac8ea3f5a46aed1a5331610c10bc153473c4595f  ./src/forgeshell/src/ui/state.c
 fccdefb3fed4bb75e7177acf1025ac2fe40f5396781d240c2bc1710327b79752  ./src/forgeshell/src/ui/state.h
-e54e18845d3f3c7b8b713932925c76532535ed77e1b93eace5e3bd78daa0639a  ./src/forgeshell/src/ui/ui.c
-c878db0f357cfe8dc09be573353a796288dc6902ebed7a513f808ca5498a2e16  ./tests/forgeshell/core_test.c
+7ee35ffbdc48dab539457a4f70e92599e3c621e2947ddb5c2271ea26e39a2716  ./src/forgeshell/src/ui/ui.c
+03b83a223fbb2d69873c05c74c9a8c091a297f2d053c0732bc7b8ef9c088e628  ./tests/forgeshell/core_test.c
 80a265b1aa69d7208854d0ef4b5d16ebdbb78c6dd0ba852ef2e17933ae5d553d  ./tests/forgeshell/stubs/SDL/SDL.h
 b4afb7b7a7fcd1d199c87bfef31edf119e107c03bdef99aa44bfa4422eb3fc59  ./tests/forgeshell/stubs/SDL/SDL_ttf.h
 dc6cccbcd2eb3d8716e76a7d62f216a391fb017a904c08ac3bd8eee97d4246dc  ./tests/forgeshell/ui_state_test.c

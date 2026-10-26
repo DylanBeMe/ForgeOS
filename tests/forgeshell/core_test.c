@@ -588,6 +588,51 @@ int main(void) {
         fs_metadata_close(&metadata);
     }
 
+    {
+        /* MiyooCFW RetroArch core links name no ROM placeholder; GMenu2X
+         * appends the selected file, so ForgeShell must do the same. */
+        char core_section[FS_MAX_PATH];
+        char core_cache[FS_MAX_PATH];
+        char pce_roms[FS_MAX_PATH];
+        char link[2048];
+        char *argv[16];
+        char argv_storage[4096];
+        FsGame core_game;
+        FsLibrary *core_library = (FsLibrary *)calloc(1U, sizeof(*core_library));
+        CHECK(core_library != NULL);
+        CHECK(fs_path_join(core_section, sizeof(core_section), temp, "sections/ra-cores") == 0);
+        CHECK(fs_path_join(core_cache, sizeof(core_cache), temp, "state/core-cache.tsv") == 0);
+        CHECK(fs_path_join(pce_roms, sizeof(pce_roms), temp, "roms/PCE") == 0);
+        CHECK(make_dir(core_section) == 0 && make_dir(pce_roms) == 0);
+        CHECK(fs_path_join(path, sizeof(path), core_section, "pce_fast") == 0);
+        CHECK(snprintf(link, sizeof(link),
+            "title=PC Engine\nexec=/mnt/emus/retroarch/retroarch\n"
+            "params=-vL /cores/pce_fast_libretro.so --appendconfig=\"/mnt/.retroarch/menu.cfg\"\n"
+            "selectordir=%s\nselectorfilter=.pce\n", pce_roms) < (int)sizeof(link));
+        CHECK(write_text(path, link, 0644) == 0);
+        fs_library_init(core_library, core_cache);
+        CHECK(fs_library_discover(core_library, core_section) == 1);
+        memset(&core_game, 0, sizeof(core_game));
+        CHECK(fs_path_join(core_game.path, sizeof(core_game.path), pce_roms, "Bonk's Adventure.pce") == 0);
+        CHECK(fs_runner_build_argv(&core_library->systems[0], &core_game, argv, 16U,
+                                   argv_storage, sizeof(argv_storage)) == 0);
+        CHECK(strcmp(argv[1], "-vL") == 0 &&
+              strcmp(argv[2], "/cores/pce_fast_libretro.so") == 0 &&
+              strcmp(argv[3], "--appendconfig=/mnt/.retroarch/menu.cfg") == 0 &&
+              argv[4] != NULL && strcmp(argv[4], core_game.path) == 0 && argv[5] == NULL);
+        CHECK(fs_runner_build_command(&core_library->systems[0], &core_game,
+                                      command, sizeof(command)) == 0);
+        CHECK(strstr(command, "/roms/PCE/Bonk") != NULL);
+
+        CHECK(fs_copy(core_library->systems[0].params, sizeof(core_library->systems[0].params),
+                      "--name [selFileFull]") == 0);
+        CHECK(fs_runner_build_argv(&core_library->systems[0], &core_game, argv, 16U,
+                                   argv_storage, sizeof(argv_storage)) == 0);
+        CHECK(strcmp(argv[2], "Bonk's Adventure.pce") == 0 && argv[3] == NULL);
+        fs_library_close(core_library);
+        free(core_library);
+    }
+
     fs_library_close(library);
     free(library);
     return 0;

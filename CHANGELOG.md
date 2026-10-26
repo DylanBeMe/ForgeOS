@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Fixed
+
+- GMenu2X links whose `params` name no file placeholder now receive the selected ROM as a final argument, matching GMenu2X. MiyooCFW RetroArch core links (`-vL <core> --appendconfig=...`) previously started without content and exited immediately.
+- Game launches support the GMenu2X `[selFileFull]` placeholder.
+
+### Changed
+
+- ForgeShell logs each game and maintenance-tool exit status to stderr (the boot log at `/mnt/forgeshell/state/forgeshell.log`), including tool runtime and `TERM`.
+- A maintenance tool that exits within one second leaves its console output on screen for five seconds, with its exit status, before ForgeShell redraws.
+
 ## 0.6.5 — 2026-08-16
 
 ### Added
